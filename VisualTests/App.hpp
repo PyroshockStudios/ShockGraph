@@ -36,7 +36,14 @@ using namespace PyroshockStudios::Platform;
 namespace VisualTests {
     class StdoutLogger : public ILogStream {
     public:
-        StdoutLogger(const char* name) : mName(name) {
+        StdoutLogger(const char* name) {
+            usize len = strlen(name);
+            mName = new char[len + 1];
+            strncpy(mName, name, len);
+            memset(mName + len, 0, sizeof(char));
+        }
+        virtual ~StdoutLogger() {
+            delete[] mName;
         }
         virtual void Log(LogSeverity severity, const char* message) const {
             const char* sevStr = "";
@@ -78,7 +85,7 @@ namespace VisualTests {
         }
 
     private:
-        const char* mName = nullptr;
+         char* mName = nullptr;
     };
 
     class VisualTestApp {

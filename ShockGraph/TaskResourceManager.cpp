@@ -58,20 +58,20 @@ namespace PyroshockStudios {
 
 
 
-        TaskResourceManager::TaskResourceManager(const TaskResourceManagerInfo& info)
+        SHOCKGRAPH_API TaskResourceManager::TaskResourceManager(const TaskResourceManagerInfo& info)
             : mDevice(info.device), mRHI(info.rhi), mFramesInFlight(info.framesInFlight), mShaderReloadListener(new ShaderReloadListener(this)) {
             ASSERT(mRHI, "RHI was not set!");
             ASSERT(mDevice, "Device was not set!");
             ASSERT(mFramesInFlight >= 2, "Frames in flight must be at least 2!");
         }
-        TaskResourceManager::~TaskResourceManager() {
+        SHOCKGRAPH_API TaskResourceManager::~TaskResourceManager() {
             if (mResources.size() != mTombstones.size()) {
                 Logger::Fatal(mLogStream, "Not all resources have been released before task resource manager destruction! "
                                           "All resources must be destroyed before the resource manager!");
             }
             delete mShaderReloadListener;
         }
-        TaskBuffer TaskResourceManager::CreatePersistentBuffer(const TaskBufferInfo& info, eastl::span<const u8> initialData) {
+        SHOCKGRAPH_API TaskBuffer TaskResourceManager::CreatePersistentBuffer(const TaskBufferInfo& info, eastl::span<const u8> initialData) {
             BufferUsageFlags extraRequiredFlags = {};
             eastl::vector<Buffer> buffersInFlight{};
             Buffer buffer = PYRO_NULL_BUFFER;
@@ -132,7 +132,7 @@ namespace PyroshockStudios {
             }
             return retBuffer;
         }
-        TaskImage TaskResourceManager::CreatePersistentImage(const TaskImageInfo& info, eastl::span<const u8> initialData) {
+        SHOCKGRAPH_API TaskImage TaskResourceManager::CreatePersistentImage(const TaskImageInfo& info, eastl::span<const u8> initialData) {
             ImageUsageFlags extraRequiredFlags = {};
 
             if (!initialData.empty()) {
@@ -194,7 +194,7 @@ namespace PyroshockStudios {
             }
             return TaskImage::Create(this, info, eastl::move(image));
         }
-        ShaderResourceId TaskResourceManager::DefaultShaderResourceView(TaskImage image) {
+        SHOCKGRAPH_API ShaderResourceId TaskResourceManager::DefaultShaderResourceView(TaskImage image) {
             auto& imageInfo = mDevice->GetImageInfo(image->Internal());
             ImageResourceInfo resourceInfo{
                 .image = image->Internal(),
@@ -221,7 +221,7 @@ namespace PyroshockStudios {
             }
             return mDevice->CreateShaderResource(resourceInfo);
         }
-        ShaderResourceId TaskResourceManager::DefaultShaderResourceView(TaskBuffer buffer) {
+        SHOCKGRAPH_API ShaderResourceId TaskResourceManager::DefaultShaderResourceView(TaskBuffer buffer) {
             auto& bufferInfo = mDevice->GetBufferInfo(buffer->Internal());
             BufferResourceInfo resourceInfo{
                 .buffer = buffer->Internal(),
@@ -233,7 +233,7 @@ namespace PyroshockStudios {
             return mDevice->CreateShaderResource(resourceInfo);
         }
 
-        TaskColorTarget TaskResourceManager::CreateColorTarget(const TaskColorTargetInfo& info) {
+        SHOCKGRAPH_API TaskColorTarget TaskResourceManager::CreateColorTarget(const TaskColorTargetInfo& info) {
             ASSERT(info.image, "No Image defined!");
             RenderTarget renderTarget = mDevice->CreateRenderTarget({
                 .image = info.image->Internal(),
@@ -243,7 +243,7 @@ namespace PyroshockStudios {
             });
             return TaskColorTarget::Create(this, info, eastl::move(renderTarget));
         }
-        TaskDepthStencilTarget TaskResourceManager::CreateDepthStencilTarget(const TaskDepthStencilTargetInfo& info) {
+        SHOCKGRAPH_API TaskDepthStencilTarget TaskResourceManager::CreateDepthStencilTarget(const TaskDepthStencilTargetInfo& info) {
             ASSERT(info.image, "No Image defined!");
             RenderTarget renderTarget = mDevice->CreateRenderTarget({
                 .image = info.image->Internal(),
@@ -253,13 +253,13 @@ namespace PyroshockStudios {
             });
             return TaskDepthStencilTarget::Create(this, info, eastl::move(renderTarget));
         }
-        ShaderResourceId TaskResourceManager::CreateShaderResourceView(const TaskBufferResourceInfo& info) {
+        SHOCKGRAPH_API ShaderResourceId TaskResourceManager::CreateShaderResourceView(const TaskBufferResourceInfo& info) {
             return mDevice->CreateShaderResource(BufferResourceInfo{
                 .buffer = info.buffer->Internal(),
                 .region = info.region,
             });
         }
-        ShaderResourceId TaskResourceManager::CreateShaderResourceView(const TaskImageResourceInfo& info) {
+        SHOCKGRAPH_API ShaderResourceId TaskResourceManager::CreateShaderResourceView(const TaskImageResourceInfo& info) {
             return mDevice->CreateShaderResource(ImageResourceInfo{
                 .image = info.image->Internal(),
                 .slice = info.slice,
@@ -267,13 +267,13 @@ namespace PyroshockStudios {
                 .format = info.format,
             });
         }
-        UnorderedAccessId TaskResourceManager::CreateUnorderedAccessView(const TaskBufferResourceInfo& info) {
+        SHOCKGRAPH_API UnorderedAccessId TaskResourceManager::CreateUnorderedAccessView(const TaskBufferResourceInfo& info) {
             return mDevice->CreateUnorderedAccess(BufferResourceInfo{
                 .buffer = info.buffer->Internal(),
                 .region = info.region,
             });
         }
-        UnorderedAccessId TaskResourceManager::CreateUnorderedAccessView(const TaskImageResourceInfo& info) {
+        SHOCKGRAPH_API UnorderedAccessId TaskResourceManager::CreateUnorderedAccessView(const TaskImageResourceInfo& info) {
             return mDevice->CreateUnorderedAccess(ImageResourceInfo{
                 .image = info.image->Internal(),
                 .slice = info.slice,
@@ -281,20 +281,20 @@ namespace PyroshockStudios {
                 .format = info.format,
             });
         }
-        SamplerId TaskResourceManager::CreateSampler(const TaskSamplerInfo& info) {
+        SHOCKGRAPH_API SamplerId TaskResourceManager::CreateSampler(const TaskSamplerInfo& info) {
             return mDevice->CreateSampler(info);
         }
-        void TaskResourceManager::ReleaseShaderResourceView(ShaderResourceId& id) {
+        SHOCKGRAPH_API void TaskResourceManager::ReleaseShaderResourceView(ShaderResourceId& id) {
             mDevice->Destroy(id);
         }
-        void TaskResourceManager::ReleaseUnorderedAccessView(UnorderedAccessId& id) {
+        SHOCKGRAPH_API void TaskResourceManager::ReleaseUnorderedAccessView(UnorderedAccessId& id) {
             mDevice->Destroy(id);
         }
-        void TaskResourceManager::ReleaseSampler(SamplerId& id) {
+        SHOCKGRAPH_API void TaskResourceManager::ReleaseSampler(SamplerId& id) {
             mDevice->Destroy(id);
         }
 
-        TaskRasterPipeline TaskResourceManager::CreateRasterPipeline(const TaskRasterPipelineInfo& info, const TaskRasterPipelineShaders& shaders) {
+        SHOCKGRAPH_API TaskRasterPipeline TaskResourceManager::CreateRasterPipeline(const TaskRasterPipelineInfo& info, const TaskRasterPipelineShaders& shaders) {
             eastl::vector<TaskShader_*> addRefs = {};
 
             if (shaders.vertexShaderInfo) {
@@ -330,13 +330,13 @@ namespace PyroshockStudios {
             pipeline->Recreate();
             return pipeline;
         }
-        TaskComputePipeline TaskResourceManager::CreateComputePipeline(const TaskComputePipelineInfo& info, const TaskShaderInfo& shader) {
+        SHOCKGRAPH_API TaskComputePipeline TaskResourceManager::CreateComputePipeline(const TaskComputePipelineInfo& info, const TaskShaderInfo& shader) {
             TaskComputePipeline pipeline = TaskComputePipeline::Create(this, info, shader);
             shader.program->mUsedByResources.emplace_back(pipeline.Get());
             pipeline->Recreate();
             return pipeline;
         }
-        TaskSwapChain TaskResourceManager::CreateSwapChain(const TaskSwapChainInfo& info) {
+        SHOCKGRAPH_API TaskSwapChain TaskResourceManager::CreateSwapChain(const TaskSwapChainInfo& info) {
             SwapChainFormat format = {};
             switch (info.format) {
             case TaskSwapChainFormat::e8Bit:

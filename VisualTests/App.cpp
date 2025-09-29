@@ -68,6 +68,9 @@ namespace VisualTests {
         delete gSGSink;
         delete gRHILoaderSink;
         delete gShaderSink;
+        if (gRHISink) {
+            delete gRHISink;
+        }
     }
 
     void VisualTestApp::AddTest(eastl::unique_ptr<IVisualTest>&& test) {
@@ -177,7 +180,7 @@ namespace VisualTests {
         // because of the vulkan swapchain being so limited
         // dxgi is latched forever on the window and cannot be detached
         // so the window must be recreated
-        if (!mActiveWindow || mRHIManager && strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "d3d12") == 0) {
+        if (!mActiveWindow || mRHIManager && strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "dx12") == 0) {
             CreateWindow();
         }
 
@@ -187,12 +190,12 @@ namespace VisualTests {
 
         GUID useRHI = GUID::Invalid();
         RHICreateInfo createInfo{};
-
+        RHIInfo useRHIInfo = {};
         u32 rhiIndex = 0;
         for (const auto& rhiInfo : mRHIManager->QueryAvailableRHIs()) {
             if (rhiIndex == mCurrentRHI) {
                 useRHI = rhiInfo.guid;
-
+                useRHIInfo = rhiInfo;
                 u32 optionIndex = 0;
                 for (u32 i = 0; i < PYRO_RHI_MAX_OPTIONS; ++i) {
                     const auto& option = rhiInfo.availableOptions[i];
@@ -211,7 +214,10 @@ namespace VisualTests {
             createInfo.appVersion = BUILD_VERSION;
             createInfo.engineVersion = BUILD_VERSION;
             createInfo.engineName = "ShockGraph Visual Test";
-
+            if (gRHISink)
+                delete gRHISink;
+            gRHISink = new StdoutLogger(useRHIInfo.shorthand);
+            createInfo.pLoggerSink = gRHISink;
             if (!mRHIManager->AttachRHI(useRHI, createInfo)) {
                 Logger::Warn(gRHILoaderSink, "Target RHI failed to attach, trying to attach next best RHI");
                 u32 numRhis = static_cast<u32>(mRHIManager->QueryAvailableRHIs().size());
@@ -231,8 +237,10 @@ namespace VisualTests {
             .rhi = mRHIManager->GetAttachedRHI(),
             .device = mRHIManager->GetRHIDevice(),
             .framesInFlight = FRAMES_IN_FLIGHT });
+        mTaskResourceManager->InjectLogger(gSGSink);
         mTaskRenderGraph = eastl::make_unique<TaskGraph>(TaskGraphInfo{
             .resourceManager = mTaskResourceManager.get() });
+        mTaskRenderGraph->InjectLogger(gSGSink);
         mSwapChain = mTaskResourceManager->CreateSwapChain({
             .window = mActiveWindow,
             .format = TaskSwapChainFormat::e8Bit,

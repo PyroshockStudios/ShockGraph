@@ -53,8 +53,8 @@ namespace PyroshockStudios {
         using TaskSamplerInfo = SamplerInfo;
         class TaskResourceManager : public ILoggerAware, DeleteCopy, DeleteMove {
         public:
-            TaskResourceManager(const TaskResourceManagerInfo& info);
-            ~TaskResourceManager();
+            SHOCKGRAPH_API TaskResourceManager(const TaskResourceManagerInfo& info);
+            SHOCKGRAPH_API ~TaskResourceManager();
 
             PYRO_NODISCARD SHOCKGRAPH_API TaskBuffer CreatePersistentBuffer(const TaskBufferInfo& info, eastl::span<const u8> initialData = {});
             PYRO_NODISCARD SHOCKGRAPH_API TaskImage CreatePersistentImage(const TaskImageInfo& info, eastl::span<const u8> initialData = {});

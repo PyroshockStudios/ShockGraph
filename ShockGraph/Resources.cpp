@@ -120,7 +120,7 @@ namespace PyroshockStudios {
             mShader.program->RemoveReference(this);
             Device()->Destroy(mPipeline);
         }
-        SHOCKGRAPH_API void TaskComputePipeline_::Recreate() {
+         void TaskComputePipeline_::Recreate() {
             ShaderInfo copyShader;
             copyShader.program = mShader.program->Program().bytecode;
             copyShader.specializationConstants = mShader.specializationConstants;

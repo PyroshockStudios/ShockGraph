@@ -109,7 +109,7 @@ namespace PyroshockStudios {
         private:
             PipelineBindPoint GetBindPoint() override { return PipelineBindPoint::None; }
 
-            void ExecuteTask(TaskCommandList& commandList) override;
+            SHOCKGRAPH_API void ExecuteTask(TaskCommandList& commandList) override;
         };
         using TaskSetupCustomCallback = eastl::function<void(CustomTask&)>;
         using TaskExecuteCustomCallback = eastl::function<void(ICommandBuffer*)>;

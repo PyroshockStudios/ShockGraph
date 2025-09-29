@@ -20,7 +20,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
       - name: Configure CMake (MSVC)
         run: >
           cmake -B build
@@ -28,8 +27,16 @@ jobs:
           -DCMAKE_C_COMPILER=cl
           -DCMAKE_CXX_COMPILER=cl
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -DPYRO_COMMON_BUILD_TESTS=ON
           -DPYRO_COMMON_SHARED_LIBRARY=${{ matrix.shared }}
+          -DPYRO_PLATFORM_SHARED_LIBRARY=${{ matrix.shared }}
+          -DPYRO_PLATFORM_DUMMY_INTERFACE=ON
+          -DPYRO_RHI_BUILD_VULKAN=OFF
+          -DPYRO_RHI_BUILD_DX12=OFF
+          -DPYRO_RHI_BUILD_METAL=OFF
+          -DSHOCKGRAPH_SHARED_LIBRARY=${{ matrix.shared }}
+          -DSHOCKGRAPH_USE_PYRO_PLATFORM=ON
+          -DSHOCKGRAPH_BUILD_VISUAL_TESTS=ON
+          -DSHOCKGRAPH_BUILD_RENDERGRAPH_TESTS=ON
           -S .
 
       - name: Build (MSVC)

@@ -1,0 +1,9 @@
+[submodule "vendor/PyroRHI"]
+	path = vendor/PyroRHI
+	url = https://github.com/PyroshockStudios/PyroRHI.git
+[submodule "vendor/PyroPlatform"]
+	path = vendor/PyroPlatform
+	url = https://github.com/PyroshockStudios/PyroPlatform.git
+[submodule "vendor/PyroCommon"]
+	path = vendor/PyroCommon
+	url = https://github.com/PyroshockStudios/PyroCommon.git

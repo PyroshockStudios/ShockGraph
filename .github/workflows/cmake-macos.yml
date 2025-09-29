@@ -1,0 +1,40 @@
+name: macOS Build (AppleClang x86 & ARM)
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, arm64]
+        build_type: [Release]
+        shared: [ON, OFF]
+
+    steps:
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake (macOS)
+        run: >
+          cmake -B build
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DPYRO_COMMON_BUILD_TESTS=ON
+          -DPYRO_COMMON_SHARED_LIBRARY=${{ matrix.shared }}
+          -S .
+
+      - name: Build (macOS)
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel 4
+
+      - name: Run tests
+        working-directory: build
+        run: ctest --build-config ${{ matrix.build_type }}

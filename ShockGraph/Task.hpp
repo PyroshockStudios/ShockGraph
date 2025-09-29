@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2025 Pyroshock Studios
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #pragma once
 
 #include "Resources.hpp"
@@ -46,10 +68,9 @@ namespace PyroshockStudios {
 
         class GenericTask : DeleteCopy, DeleteMove {
         public:
-            GenericTask(const TaskInfo& info) : mTaskInfo(info) {
-            }
-            GenericTask() = default;
-            virtual ~GenericTask() = default;
+            SHOCKGRAPH_API GenericTask(const TaskInfo& info) : mTaskInfo(info) {}
+            SHOCKGRAPH_API GenericTask() = default;
+            SHOCKGRAPH_API virtual ~GenericTask() = default;
 
             virtual void SetupTask() = 0;
             virtual void ExecuteTask(TaskCommandList& commandList) = 0;
@@ -80,8 +101,8 @@ namespace PyroshockStudios {
 
         class CustomTask : public virtual GenericTask {
         public:
-            CustomTask() = default;
-            virtual ~CustomTask() = default;
+            SHOCKGRAPH_API CustomTask() = default;
+            SHOCKGRAPH_API virtual ~CustomTask() = default;
 
             virtual void ExecuteTask(ICommandBuffer* commandBuffer) = 0;
 
@@ -95,9 +116,9 @@ namespace PyroshockStudios {
 
         class CustomCallbackTask final : public CustomTask {
         public:
-            CustomCallbackTask(const TaskInfo& info, TaskSetupCustomCallback&& setup, TaskExecuteCustomCallback&& exec, TaskType type)
+            SHOCKGRAPH_API CustomCallbackTask(const TaskInfo& info, TaskSetupCustomCallback&& setup, TaskExecuteCustomCallback&& exec, TaskType type)
                 : GenericTask(info), mSetup(eastl::move(setup)), mExec(eastl::move(exec)), mType(type) {}
-            ~CustomCallbackTask() = default;
+            SHOCKGRAPH_API ~CustomCallbackTask() = default;
 
             PYRO_FORCEINLINE void SetupTask() override { mSetup(static_cast<CustomTask&>(*this)); }
             PYRO_FORCEINLINE void ExecuteTask(ICommandBuffer* commandBuffer) override { mExec(commandBuffer); }
@@ -127,8 +148,8 @@ namespace PyroshockStudios {
         };
         class GraphicsTask : public virtual GenericTask {
         public:
-            GraphicsTask() = default;
-            virtual ~GraphicsTask() = default;
+            SHOCKGRAPH_API GraphicsTask() = default;
+            SHOCKGRAPH_API virtual ~GraphicsTask() = default;
 
             PYRO_NODISCARD PYRO_FORCEINLINE PipelineBindPoint GetBindPoint() final override {
                 return PipelineBindPoint::Graphics;
@@ -153,9 +174,9 @@ namespace PyroshockStudios {
 
         class GraphicsCallbackTask final : public GraphicsTask {
         public:
-            GraphicsCallbackTask(const TaskInfo& info, TaskSetupGraphicsCallback&& setup, TaskExecuteCallback&& exec)
+            SHOCKGRAPH_API GraphicsCallbackTask(const TaskInfo& info, TaskSetupGraphicsCallback&& setup, TaskExecuteCallback&& exec)
                 : GenericTask(info), mSetup(eastl::move(setup)), mExec(eastl::move(exec)) {}
-            ~GraphicsCallbackTask() = default;
+            SHOCKGRAPH_API ~GraphicsCallbackTask() = default;
 
             PYRO_FORCEINLINE void SetupTask() override { mSetup(static_cast<GraphicsTask&>(*this)); }
             PYRO_FORCEINLINE void ExecuteTask(TaskCommandList& commandList) override { mExec(commandList); }
@@ -167,8 +188,8 @@ namespace PyroshockStudios {
 
         class ComputeTask : public virtual GenericTask {
         public:
-            ComputeTask() = default;
-            virtual ~ComputeTask() = default;
+            SHOCKGRAPH_API ComputeTask() = default;
+            SHOCKGRAPH_API virtual ~ComputeTask() = default;
 
             PYRO_NODISCARD PYRO_FORCEINLINE PipelineBindPoint GetBindPoint() final override {
                 return PipelineBindPoint::Compute;
@@ -184,12 +205,12 @@ namespace PyroshockStudios {
 
         class ComputeCallbackTask final : public ComputeTask {
         public:
-            ComputeCallbackTask(const TaskInfo& info, TaskSetupComputeCallback&& setup, TaskExecuteCallback&& exec)
+            SHOCKGRAPH_API ComputeCallbackTask(const TaskInfo& info, TaskSetupComputeCallback&& setup, TaskExecuteCallback&& exec)
                 : GenericTask(info), mSetup(eastl::move(setup)), mExec(eastl::move(exec)) {}
-            ~ComputeCallbackTask() = default;
+            SHOCKGRAPH_API ~ComputeCallbackTask() = default;
 
-            void SetupTask() override { mSetup(static_cast<ComputeTask&>(*this)); }
-            void ExecuteTask(TaskCommandList& commandList) override { mExec(commandList); }
+            PYRO_FORCEINLINE void SetupTask() override { mSetup(static_cast<ComputeTask&>(*this)); }
+            PYRO_FORCEINLINE void ExecuteTask(TaskCommandList& commandList) override { mExec(commandList); }
 
         private:
             TaskSetupComputeCallback mSetup;
@@ -198,8 +219,8 @@ namespace PyroshockStudios {
 
         class TransferTask : public virtual GenericTask {
         public:
-            TransferTask() = default;
-            virtual ~TransferTask() = default;
+            SHOCKGRAPH_API TransferTask() = default;
+            SHOCKGRAPH_API virtual ~TransferTask() = default;
 
             PYRO_NODISCARD PYRO_FORCEINLINE PipelineBindPoint GetBindPoint() final override {
                 return PipelineBindPoint::None;
@@ -215,9 +236,9 @@ namespace PyroshockStudios {
 
         class TransferCallbackTask final : public TransferTask {
         public:
-            TransferCallbackTask(const TaskInfo& info, TaskSetupTransferCallback&& setup, TaskExecuteCallback&& exec)
+            SHOCKGRAPH_API TransferCallbackTask(const TaskInfo& info, TaskSetupTransferCallback&& setup, TaskExecuteCallback&& exec)
                 : GenericTask(info), mSetup(eastl::move(setup)), mExec(eastl::move(exec)) {}
-            ~TransferCallbackTask() = default;
+            SHOCKGRAPH_API ~TransferCallbackTask() = default;
 
             PYRO_FORCEINLINE void SetupTask() override { mSetup(static_cast<TransferTask&>(*this)); }
             PYRO_FORCEINLINE void ExecuteTask(TaskCommandList& commandList) override { mExec(commandList); }
@@ -227,5 +248,5 @@ namespace PyroshockStudios {
             TaskExecuteCallback mExec;
         };
 
-    }
-}
+    } // namespace Renderer
+} // namespace PyroshockStudios

@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2025 Pyroshock Studios
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "TaskGraph.hpp"
 #include <PyroCommon/Logger.hpp>
 #include <PyroRHI/Api/ICommandQueue.hpp>
@@ -188,7 +210,7 @@ namespace PyroshockStudios {
             ~TransferTaskExecute() = default;
         };
 
-        TaskGraph::TaskGraph(const TaskGraphInfo& info)
+        SHOCKGRAPH_API TaskGraph::TaskGraph(const TaskGraphInfo& info)
             : mDevice(info.resourceManager->mDevice), mQueue(mDevice->GetPresentQueue()), mResourceManager(info.resourceManager),
               mFramesInFlight(info.resourceManager->mFramesInFlight) {
 
@@ -197,7 +219,7 @@ namespace PyroshockStudios {
                 mRenderFinishedSemaphores.push_back(mDevice->CreateSemaphore({ "Task Graph Render Finish Semaphore #" + eastl::to_string(i) }));
             }
         }
-        TaskGraph::~TaskGraph() {
+        SHOCKGRAPH_API TaskGraph::~TaskGraph() {
             mDevice->WaitIdle();
             mDevice->Destroy(mGpuFrameTimeline);
             for (auto& sem : mRenderFinishedSemaphores) {
@@ -205,7 +227,7 @@ namespace PyroshockStudios {
             }
         }
 
-        void TaskGraph::AddTask(GraphicsTask* task) {
+        SHOCKGRAPH_API void TaskGraph::AddTask(GraphicsTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
@@ -270,26 +292,26 @@ namespace PyroshockStudios {
             };
             mTasks.push_back(new GraphicsTaskExecute(task, eastl::move(renderPassInfo)));
         }
-        void TaskGraph::AddTask(ComputeTask* task) {
+        SHOCKGRAPH_API void TaskGraph::AddTask(ComputeTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
             mTasks.push_back(new ComputeTaskExecute(task));
         }
-        void TaskGraph::AddTask(TransferTask* task) {
+        SHOCKGRAPH_API void TaskGraph::AddTask(TransferTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
             mTasks.push_back(new TransferTaskExecute(task));
         }
-        void TaskGraph::AddTask(CustomTask* task) {
+        SHOCKGRAPH_API void TaskGraph::AddTask(CustomTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
             mTasks.push_back(new TaskExecute(task));
         }
 
-        void TaskGraph::AddSwapChainWrite(const TaskSwapChainWriteInfo& writeInfo) {
+        SHOCKGRAPH_API void TaskGraph::AddSwapChainWrite(const TaskSwapChainWriteInfo& writeInfo) {
             ASSERT(writeInfo.swapChain);
             ASSERT(writeInfo.image);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
@@ -336,7 +358,7 @@ namespace PyroshockStudios {
             mTasks.push_back(new TaskExecute(mInternalTasks.back().get()));
         }
 
-        void TaskGraph::Reset() {
+        SHOCKGRAPH_API void TaskGraph::Reset() {
             for (TaskExecute* task : mTasks) {
                 delete task;
             }
@@ -346,7 +368,9 @@ namespace PyroshockStudios {
             mBatches.clear();
             bBaked = false;
         }
-        void TaskGraph::Build() {
+        SHOCKGRAPH_API void TaskGraph::Build() {
+            Logger::Trace(mLogStream, "Rebuilding tasks");
+
             struct ResourceState {
                 TaskAccessType currentAccess = {};
                 eastl::optional<TaskId> lastTaskId = {};
@@ -498,8 +522,9 @@ namespace PyroshockStudios {
                 }
             }
             bBaked = true;
+            Logger::Trace(mLogStream, "Rebuilt task graph, {} task objects, {} batch objects", mTasks.size(), mBatches.size());
         }
-        void TaskGraph::BeginFrame(u32 timeoutMilliseconds) {
+        SHOCKGRAPH_API void TaskGraph::BeginFrame(u32 timeoutMilliseconds) {
             ASSERT(bBaked, "Build() must be called before starting a frame in a rendergraph!");
             // i dont know why, but cpu timeline index has to be 1 frame ahead than normal...
             ++mCpuTimelineIndex;
@@ -517,10 +542,10 @@ namespace PyroshockStudios {
                     0,
                     static_cast<i64>(mCpuTimelineIndex) - static_cast<i64>(mFramesInFlight)));
             if (!mGpuFrameTimeline->WaitForValue(waitIndex, 1000 * 1000 * timeoutMilliseconds)) {
-                Logger::Fatal("GPU hanging! Aborting program!");
+                Logger::Fatal(mLogStream, "GPU hanging! Aborting program!");
             }
         }
-        void TaskGraph::EndFrame() {
+        SHOCKGRAPH_API void TaskGraph::EndFrame() {
             for (TaskSwapChain& swapChain : mSwapChains) {
                 mQueue->SubmitSwapChain(swapChain->Internal());
             }
@@ -531,7 +556,7 @@ namespace PyroshockStudios {
             mFrameIndex = (mFrameIndex + 1) % mFramesInFlight;
             bInFrame = false;
         }
-        void TaskGraph::Execute() {
+        SHOCKGRAPH_API void TaskGraph::Execute() {
             ASSERT(bInFrame, "Do not call Execute() outside of a frame!");
 
             ICommandBuffer* commandBuffer = mDevice->GetCommandBuffer({
@@ -610,13 +635,11 @@ namespace PyroshockStudios {
                             .dstLayout = ImageLayout::TransferDst,
                         });
                         // FIXME: multiple slices?
-                        commandBuffer->CopyBufferToImage({
-                            .buffer = uploadPair.srcBuffer,
+                        commandBuffer->CopyBufferToImage({ .buffer = uploadPair.srcBuffer,
                             .image = stagingUpload.dstImage,
                             .imageSlice = stagingUpload.dstImageSlice,
                             .imageExtent = mDevice->GetImageInfo(stagingUpload.dstImage).size,
-                            .rowPitch = stagingUpload.rowPitch
-                        });
+                            .rowPitch = stagingUpload.rowPitch });
                         commandBuffer->ImageBarrier({
                             .image = stagingUpload.dstImage,
                             .srcAccess = AccessConsts::TRANSFER_WRITE,
@@ -674,7 +697,7 @@ namespace PyroshockStudios {
             commandBuffer->EndLabel();
         }
 
-        eastl::string TaskGraph::ToString() {
+        SHOCKGRAPH_API eastl::string TaskGraph::ToString() {
             eastl::string out;
             out += "TaskGraph Batches:\n";
 

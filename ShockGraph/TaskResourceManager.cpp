@@ -1,6 +1,31 @@
+// MIT License
+//
+// Copyright (c) 2025 Pyroshock Studios
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "TaskResourceManager.hpp"
 #include "IShaderReloadListener.hpp"
+
+#ifdef SHOCKGRAPH_USE_PYRO_PLATFORM
 #include <PyroPlatform/Window/IWindow.hpp>
+#endif
 #include <PyroRHI/Api/IDevice.hpp>
 #include <PyroRHI/Api/Util.hpp>
 #include <PyroRHI/Context.hpp>
@@ -41,8 +66,8 @@ namespace PyroshockStudios {
         }
         TaskResourceManager::~TaskResourceManager() {
             if (mResources.size() != mTombstones.size()) {
-                Logger::Fatal("Not all resources have been released before task resource manager destruction! "
-                              "All resources must be destroyed before the resource manager!");
+                Logger::Fatal(mLogStream, "Not all resources have been released before task resource manager destruction! "
+                                          "All resources must be destroyed before the resource manager!");
             }
             delete mShaderReloadListener;
         }
@@ -155,16 +180,14 @@ namespace PyroshockStudios {
 
                 // push one upload per mip level
                 for (u32 mip = 0; mip < info.mipLevelCount; ++mip) {
-                    uploadPair.uploads.push_back({
-                        .dstImage = image,
+                    uploadPair.uploads.push_back({ .dstImage = image,
                         .dstImageLayout = ImageLayout::ReadOnly,
                         .dstImageSlice = {
                             .mipLevel = mip,
                             .baseArrayLayer = 0,
                             .layerCount = info.arrayLayerCount,
                         },
-                        .rowPitch = static_cast<u32>(rowPitch)
-                    });
+                        .rowPitch = static_cast<u32>(rowPitch) });
                 }
 
                 mPendingStagingUploads.emplace_back(eastl::move(uploadPair));
@@ -331,16 +354,22 @@ namespace PyroshockStudios {
             }
 
             ISwapChain* swapChain = mDevice->CreateSwapChain({
+#ifdef SHOCKGRAPH_USE_PYRO_PLATFORM
                 .nativeWindow = info.window->GetNativeWindow(),
                 .nativeInstance = info.window->GetNativeInstance(),
+#else
+                .nativeWindow = info.nativeWindow,
+                .nativeInstance = info.nativeInstance,
+#endif
                 .format = format,
                 .presentMode = info.vsync ? PresentMode::VSync : PresentMode::LowLatency,
                 .bufferCount = mFramesInFlight,
                 .imageUsage = info.imageUsage,
-                .extent = {
-                    .x = info.window->GetSize().width,
-                    .y = info.window->GetSize().height,
-                },
+#ifdef SHOCKGRAPH_USE_PYRO_PLATFORM
+                .extent = { info.window->GetSize().width, info.window->GetSize().height },
+#else
+                .extent = info.nativeWindowExtent,
+#endif
                 .name = info.name,
             });
             return TaskSwapChain::Create(this, info, eastl::move(swapChain));

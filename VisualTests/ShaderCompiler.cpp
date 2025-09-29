@@ -1,4 +1,27 @@
+// MIT License
+//
+// Copyright (c) 2025 Pyroshock Studios
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "ShaderCompiler.hpp"
+#include "Core.hpp"
 
 #include <slang-com-helper.h>
 
@@ -45,7 +68,7 @@ namespace VisualTests {
         stream << reader.rdbuf();
         code = stream.str().c_str();
         if (code.empty()) {
-            Logger::Error("Failed to load code from " + eastl::string(abspath.string().c_str()));
+            Logger::Error(gShaderSink, "Failed to load code from " + eastl::string(abspath.string().c_str()));
             return {};
         }
         return CompileShaderFromSource(code, info, path);
@@ -53,14 +76,14 @@ namespace VisualTests {
 
     TaskShader ShaderCompiler::CompileShaderFromSource(const eastl::string& code_, const ShaderCompilationInfo& info, const eastl::string& virtualSourcePath) {
         if (code_.empty()) {
-            Logger::Error("Slang received empty code! Returning...");
+            Logger::Error(gShaderSink, "Slang received empty code! Returning...");
             return {};
         }
         eastl::string code = code_;
 
         eastl::hash_set<eastl::string> pyroDrawIndexAliases = {};
-        //eastl::hash_set<eastl::string> pyroFirstVertexAliases = {};
-        //eastl::hash_set<eastl::string> pyroFirstInstanceAliases = {};
+        // eastl::hash_set<eastl::string> pyroFirstVertexAliases = {};
+        // eastl::hash_set<eastl::string> pyroFirstInstanceAliases = {};
         if (!mFeatureSet->Features().bDrawParameters) {
             static auto IsInsideComment = [](const std::string& code, size_t pos) -> bool {
                 // Check for line comments
@@ -121,10 +144,10 @@ namespace VisualTests {
 
             // Find SV_DrawIndex and replace it with a reference to the constant buffer if unsupported
             MatchAndReplace("SV_DrawIndex", stdcode, pyroDrawIndexAliases);
-            //MatchAndReplace("SV_StartVertexLocation", stdcode, pyroFirstVertexAliases);
-            //MatchAndReplace("SV_StartInstanceLocation", stdcode, pyroFirstInstanceAliases);
+            // MatchAndReplace("SV_StartVertexLocation", stdcode, pyroFirstVertexAliases);
+            // MatchAndReplace("SV_StartInstanceLocation", stdcode, pyroFirstInstanceAliases);
             code = eastl::string(stdcode.c_str(), stdcode.length());
-           //  Logger::Info(code);
+            //  Logger::Info(code);
         }
 
         eastl::vector<slang::PreprocessorMacroDesc> macros = {};
@@ -134,17 +157,17 @@ namespace VisualTests {
         for (const auto& drawIndexAlias : pyroDrawIndexAliases) {
             macros.emplace_back(drawIndexAlias.c_str(), "pyro_internal__DrawIndex");
         }
-        //for (const auto& drawIndexAlias : pyroFirstVertexAliases) {
-        //    macros.emplace_back(drawIndexAlias.c_str(), "pyro_internal__FirstVertex");
-        //}
-        //for (const auto& drawIndexAlias : pyroFirstInstanceAliases) {
-        //    macros.emplace_back(drawIndexAlias.c_str(), "pyro_internal__FirstInstance");
-        //}
-        
+        // for (const auto& drawIndexAlias : pyroFirstVertexAliases) {
+        //     macros.emplace_back(drawIndexAlias.c_str(), "pyro_internal__FirstVertex");
+        // }
+        // for (const auto& drawIndexAlias : pyroFirstInstanceAliases) {
+        //     macros.emplace_back(drawIndexAlias.c_str(), "pyro_internal__FirstInstance");
+        // }
+
 
         eastl::vector<std::string> includes = {};
         eastl::vector<const char*> includesPtr = {};
-        std::filesystem::path absoluteIncludeDir = std::filesystem::absolute(SW_SHADER_INCLUDE_DIR);
+        std::filesystem::path absoluteIncludeDir = std::filesystem::absolute("resources/Shaders/Include");
         includes.push_back(absoluteIncludeDir.string());
         includesPtr.push_back(includes.back().c_str());
 
@@ -176,7 +199,7 @@ namespace VisualTests {
         ASSERT(result == 0);
 
         if (slangRequest == nullptr) {
-            Logger::Error("Slang failed to create a valid compiler request!");
+            Logger::Error(gShaderSink, "Slang failed to create a valid compiler request!");
             return {};
         }
 
@@ -232,7 +255,7 @@ namespace VisualTests {
 
             std::string relativePathInInclude = std::filesystem::relative(file.path(), absoluteIncludeDir).string();
             if (stream.eof()) {
-                Logger::Warn("Failed to load code from '" + eastl::string(relativePathInInclude.c_str()) + "'. Ignoring file...");
+                Logger::Warn(gShaderSink, "Failed to load code from '" + eastl::string(relativePathInInclude.c_str()) + "'. Ignoring file...");
             }
 
             slangRequest->addTranslationUnitSourceString(virtualFileIndex, relativePathInInclude.c_str(), stream.str().c_str());
@@ -245,9 +268,9 @@ namespace VisualTests {
         const char* diagnostics = slangRequest->getDiagnosticOutput();
         if (diagnostics && strlen(diagnostics) > 0) {
             if (SLANG_FAILED(result)) {
-                Logger::Error("Slang failed to compile a shader! Diagnostics: " + eastl::string(diagnostics));
+                Logger::Error(gShaderSink, "Slang failed to compile a shader! Diagnostics: " + eastl::string(diagnostics));
             } else {
-                Logger::Warn("Slang compiled shader successfully, but generated diagnostics: " + eastl::string(diagnostics));
+                Logger::Warn(gShaderSink, "Slang compiled shader successfully, but generated diagnostics: " + eastl::string(diagnostics));
             }
         }
         ASSERT(result == 0);

@@ -1,11 +1,34 @@
+// MIT License
+//
+// Copyright (c) 2025 Pyroshock Studios
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #pragma once
 
 #include "Task.hpp"
 #include "TaskCommandList.hpp"
 #include "TaskResourceManager.hpp"
-#include <PyroRHI/Api/Semaphore.hpp>
 #include <EASTL/unique_ptr.h>
 #include <EASTL/vector.h>
+#include <PyroCommon/LoggerInterface.hpp>
+#include <PyroRHI/Api/Semaphore.hpp>
 
 namespace PyroshockStudios {
     inline namespace Renderer {
@@ -21,10 +44,10 @@ namespace PyroshockStudios {
             Rect2D srcRect = {};
             Rect2D dstRect = {};
         };
-        class TaskGraph : DeleteCopy, DeleteMove {
+        class TaskGraph : public ILoggerAware, DeleteCopy, DeleteMove {
         public:
-            TaskGraph(const TaskGraphInfo& info);
-            ~TaskGraph();
+            SHOCKGRAPH_API TaskGraph(const TaskGraphInfo& info);
+            SHOCKGRAPH_API ~TaskGraph();
 
             SHOCKGRAPH_API void AddTask(GraphicsTask* task);
             SHOCKGRAPH_API void AddTask(ComputeTask* task);
@@ -40,7 +63,11 @@ namespace PyroshockStudios {
             SHOCKGRAPH_API void EndFrame();
             SHOCKGRAPH_API void Execute();
 
-            eastl::string ToString();
+            PYRO_NODISCARD SHOCKGRAPH_API eastl::string ToString();
+
+            SHOCKGRAPH_API void InjectLogger(const ILogStream* stream) override {
+                mLogStream = stream;
+            }
 
         private:
             void FlushStagingBuffers(ICommandBuffer* commandBuffer);
@@ -70,6 +97,8 @@ namespace PyroshockStudios {
             u64 mCpuTimelineIndex = 0;
             bool bInFrame = false;
             bool bBaked = false;
+
+            const ILogStream* mLogStream = nullptr;
         };
     } // namespace Renderer
 } // namespace PyroshockStudios

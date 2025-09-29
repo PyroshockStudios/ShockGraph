@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2025 Pyroshock Studios
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "App.hpp"
 #include <PyroCommon/Logger.hpp>
 #include <PyroPlatform/Factory.hpp>
@@ -10,6 +32,15 @@
 #include <PyroRHI/Context.hpp>
 #include <libassert/assert.hpp>
 namespace VisualTests {
+
+
+    const ILogStream* gPlatformSink = nullptr;
+    const ILogStream* gRHILoaderSink = nullptr;
+    const ILogStream* gRHISink = nullptr;
+    const ILogStream* gSGSink = nullptr;
+    const ILogStream* gShaderSink = nullptr;
+
+
     constexpr u32 FRAMES_IN_FLIGHT = 3;
     constexpr u32 WIDTH = 1000;
     constexpr u32 HEIGHT = 700;
@@ -17,8 +48,13 @@ namespace VisualTests {
     constexpr bool ENABLE_DEBUG_LAYERS = true;
 
     VisualTestApp::VisualTestApp() {
+        gPlatformSink = new StdoutLogger("PLATFORM");
+        gSGSink = new StdoutLogger("TASKGRAPH");
+        gRHILoaderSink = new StdoutLogger("RHILOADER");
+        gShaderSink = new StdoutLogger("SLANGCOMPILER");
+
+        PlatformFactory::Get<IWindowManager>()->InjectLogger(gPlatformSink);
         if (!PlatformFactory::Get<IWindowManager>()->Init()) {
-            Logger::Fatal("Failed to initialise window manager!");
             abort();
         }
     }
@@ -28,6 +64,10 @@ namespace VisualTests {
         mSwapChain = nullptr;
         PlatformFactory::Get<IWindowManager>()->DestroyWindow(mActiveWindow);
         PlatformFactory::Get<IWindowManager>()->Terminate();
+        delete gPlatformSink;
+        delete gSGSink;
+        delete gRHILoaderSink;
+        delete gShaderSink;
     }
 
     void VisualTestApp::AddTest(eastl::unique_ptr<IVisualTest>&& test) {
@@ -36,6 +76,7 @@ namespace VisualTests {
 
     void VisualTestApp::Run() {
         ASSERT(!mTests.empty(), "Add tests before running the visual test app!");
+        printf("Running Visual Tests with %i tests\n", (int)mTests.size());
         CreateRHI();
         RebuildTaskGraph();
 
@@ -141,6 +182,7 @@ namespace VisualTests {
         }
 
         mRHIManager = eastl::make_unique<RHIManager>();
+        mRHIManager->InjectLogger(gRHILoaderSink);
         mRHIManager->DiscoverAvailableRHIs();
 
         GUID useRHI = GUID::Invalid();
@@ -166,15 +208,15 @@ namespace VisualTests {
         }
         if (useRHI.Valid()) {
             createInfo.appName = "Visual Test App";
-            createInfo.appVersion = Version::CurrentVersion().BuildDate();
-            createInfo.engineVersion = Version::CurrentVersion().PureVersion();
-            createInfo.engineName = "Project Lambda 1.0";
+            createInfo.appVersion = BUILD_VERSION;
+            createInfo.engineVersion = BUILD_VERSION;
+            createInfo.engineName = "ShockGraph Visual Test";
 
             if (!mRHIManager->AttachRHI(useRHI, createInfo)) {
-                Logger::Error("Failed to attach RHI '" + useRHI.ToString() + "', trying to attach next best RHI");
+                Logger::Warn(gRHILoaderSink, "Target RHI failed to attach, trying to attach next best RHI");
                 u32 numRhis = static_cast<u32>(mRHIManager->QueryAvailableRHIs().size());
                 if (mFailedRHICreationAttempts == numRhis) {
-                    Logger::Fatal("Too many attempts failed at attaching RHIs, aborting...");
+                    Logger::Fatal(gRHILoaderSink, "Too many attempts failed at attaching RHIs, aborting...");
                 }
                 mCurrentRHI = (mCurrentRHI + 1) % numRhis;
                 ++mFailedRHICreationAttempts;
@@ -182,7 +224,7 @@ namespace VisualTests {
                 return;
             }
         } else {
-            Logger::Fatal("Failed to find a suitable RHI!");
+            Logger::Fatal(gRHILoaderSink, "Failed to find a suitable RHI!");
         }
         mFailedRHICreationAttempts = 0;
         mTaskResourceManager = eastl::make_unique<TaskResourceManager>(TaskResourceManagerInfo{
@@ -225,7 +267,7 @@ namespace VisualTests {
             } else if (auto* xtask = dynamic_cast<CustomTask*>(task); xtask) {
                 mTaskRenderGraph->AddTask(xtask);
             } else {
-                Logger::Fatal("Bad task");
+                Logger::Fatal(gSGSink, "Bad task");
             }
             mCurrentTestTasks.emplace_back(eastl::unique_ptr<GenericTask>(task));
         }

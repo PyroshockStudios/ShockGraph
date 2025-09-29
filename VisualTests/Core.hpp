@@ -20,9 +20,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "TaskCommandList.hpp"
+#pragma once
+#include <PyroCommon/Core.hpp>
+#include <PyroCommon/LoggerInterface.hpp>
 
-namespace PyroshockStudios {
-    inline namespace Renderer {
-    }
-} // namespace PyroshockStudios
+using namespace PyroshockStudios;
+using namespace PyroshockStudios::Types;
+namespace VisualTests {
+    extern const ILogStream* gShaderSink;
+} // namespace VisualTests

@@ -50,7 +50,7 @@ namespace VisualTests {
             {
                 .colorTargetStates = { { .format = image->Info().format } },
                 .tesselationState = { { .controlPoints = 3 } },
-                .inputAssemblyState = { .primitiveTopology = PrimitiveTopology::PatchList },
+                .inputAssemblyState = { .primitiveTopology = info.resourceManager.GetInternalContext()->Properties().bTesselationShader ? PrimitiveTopology::PatchList : PrimitiveTopology::TriangleList },
                 .rasterizerState = { .polygonMode = PolygonMode::Line },
                 .name = "Raster Pipeline",
             },

@@ -168,6 +168,16 @@ namespace VisualTests {
             case KeyCode::Right:
                 NextTest();
                 break;
+            case KeyCode::KeyP: {
+                Logger::Info(gSGSink, "Task Graph Timings:");
+                for (GenericTask* task : mTaskRenderGraph->GetTasks()) {
+                    f64 ns = mTaskRenderGraph->GetTaskTimingsNs(task);
+                    f64 ms = ns / 1e6;
+                    Logger::Info(gSGSink, "    {}: {:.5f} ms", task->Info().name, ms);
+                }
+                Logger::Info(gSGSink, "-- GRAPH FLUSHES TIMING -- {:.5f} ms", mTaskRenderGraph->GetMiscFlushesTimingsNs() / 1e6);
+                Logger::Info(gSGSink, "--  TOTAL GRAPH TIMING  -- {:.5f} ms", mTaskRenderGraph->GetGraphTimingsNs() / 1e6);
+            } break;
             }
         });
     }

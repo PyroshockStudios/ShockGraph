@@ -29,7 +29,7 @@ namespace VisualTests {
     static const eastl::array<f32, 2> gOffset1 = { 0.5, 0.0f };
 
     void AlphaToCoverage::CreateResources(const CreateResourceInfo& info) {
-        RasterizationSamples sampleCount = info.resourceManager.GetInternalDevice()->GetLimits().maxRenderTargetSamples;
+        RasterizationSamples sampleCount = info.resourceManager.GetInternalDevice()->GetProperties().maxRenderTargetSamples;
         image = info.resourceManager.CreatePersistentImage({
             .format = Format::RGBA8Unorm,
             .size = { info.displayInfo.width, info.displayInfo.height },

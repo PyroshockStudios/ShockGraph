@@ -150,11 +150,7 @@ namespace PyroshockStudios {
             });
             // FIXME, texture arrays/mipmaps!
             if (!initialData.empty()) {
-                const u32 rowAlignment = eastl::max(
-                    mRHI->Properties().bufferImageRowAlignment,
-                    // It's more efficient to upload a staging buffer that is aligned on vulkan,
-                    // So we should ensure this 256 row alignment
-                    256U);
+                const u32 rowAlignment = mDevice->GetProperties().bufferImageRowAlignment;
                 const DeviceSize minReqSize = RHIUtil::GetRequiredStagingSize(info.format, info.size.x, info.size.y, info.size.z, 1);
                 ASSERT(minReqSize > 0, "Invalid format for staging upload");
                 ASSERT(initialData.size_bytes() >= minReqSize, "Initial data is too small in size!");

@@ -169,14 +169,27 @@ namespace PyroshockStudios {
                     .labelColor = mTask->Info().color,
                     .name = mTask->Info().name,
                 });
+                commandBuffer->WriteTimestamp({
+                    .queryPool = mTimestampPool,
+                    .stage = PipelineStageFlagBits::TOP_OF_PIPE,
+                    .queryIndex = mBaseTimestampIndex,
+                });
             }
             virtual void PostExec(ICommandBuffer* commandBuffer) {
+                commandBuffer->WriteTimestamp({
+                    .queryPool = mTimestampPool,
+                    .stage = PipelineStageFlagBits::BOTTOM_OF_PIPE,
+                    .queryIndex = mBaseTimestampIndex + 1,
+                });
                 commandBuffer->EndLabel();
             }
 
             PYRO_NODISCARD PYRO_FORCEINLINE GenericTask* GetTask() {
                 return mTask;
             }
+
+            ITimestampQueryPool* mTimestampPool = nullptr;
+            u32 mBaseTimestampIndex = 0;
 
         private:
             GenericTask* mTask = {};
@@ -221,6 +234,8 @@ namespace PyroshockStudios {
         }
         SHOCKGRAPH_API TaskGraph::~TaskGraph() {
             mDevice->WaitIdle();
+            // cleanup resources
+            this->Reset();
             mDevice->Destroy(mGpuFrameTimeline);
             for (auto& sem : mRenderFinishedSemaphores) {
                 mDevice->Destroy(sem);
@@ -290,24 +305,28 @@ namespace PyroshockStudios {
                 .width = static_cast<i32>(extent.x),
                 .height = static_cast<i32>(extent.y),
             };
+            mAllTaskRefs.push_back(task);
             mTasks.push_back(new GraphicsTaskExecute(task, eastl::move(renderPassInfo)));
         }
         SHOCKGRAPH_API void TaskGraph::AddTask(ComputeTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
+            mAllTaskRefs.push_back(task);
             mTasks.push_back(new ComputeTaskExecute(task));
         }
         SHOCKGRAPH_API void TaskGraph::AddTask(TransferTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
+            mAllTaskRefs.push_back(task);
             mTasks.push_back(new TransferTaskExecute(task));
         }
         SHOCKGRAPH_API void TaskGraph::AddTask(CustomTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
+            mAllTaskRefs.push_back(task);
             mTasks.push_back(new TaskExecute(task));
         }
 
@@ -355,6 +374,7 @@ namespace PyroshockStudios {
                 },
                 TaskType::Transfer));
             mInternalTasks.back()->SetupTask();
+            mAllTaskRefs.push_back(mInternalTasks.back().get());
             mTasks.push_back(new TaskExecute(mInternalTasks.back().get()));
         }
 
@@ -362,10 +382,19 @@ namespace PyroshockStudios {
             for (TaskExecute* task : mTasks) {
                 delete task;
             }
+            if (!mTimestampQueryPools.empty()) {
+                // FIXME: remove this wait idle once we have a command list DestroyDeferred function for this!
+                mDevice->WaitIdle();
+                for (i32 i = 0; i < mFramesInFlight; ++i) {
+                    mDevice->Destroy(mTimestampQueryPools[i]);
+                }
+                mTimestampQueryPools.clear();
+            }
             mSwapChains.clear();
             mInternalTasks.clear();
             mTasks.clear();
             mBatches.clear();
+            mAllTaskRefs.clear();
             bBaked = false;
         }
         SHOCKGRAPH_API void TaskGraph::Build() {
@@ -521,6 +550,18 @@ namespace PyroshockStudios {
                     previousTaskType = mTasks[batch.taskIds.back()]->GetTask()->GetType();
                 }
             }
+            Logger::Trace(mLogStream, "Injecting timestamp profilers");
+            for (i32 i = 0; i < mFramesInFlight; ++i) {
+                mTimestampQueryPools.push_back(mDevice->CreateTimestampQueryPool({
+                    .queryCount = static_cast<u32>(mTasks.size() * 2 + 4),
+                    .name = "Timestamp query pool FiF=" + eastl::to_string(i),
+                }));
+            }
+            mBaseGraphTimestampIndex = mTasks.size() * 2;
+            mBaseMiscFlushesTimestampIndex = mTasks.size() * 2 + 2;
+            for (i32 i = 0; i < mTasks.size(); ++i) {
+                mTasks[i]->mBaseTimestampIndex = 2 * i;
+            }
             bBaked = true;
             Logger::Trace(mLogStream, "Rebuilt task graph, {} task objects, {} batch objects", mTasks.size(), mBatches.size());
         }
@@ -563,35 +604,89 @@ namespace PyroshockStudios {
                 .queueFlags = CommandQueueFlagBits::GRAPHICS | CommandQueueFlagBits::COMPUTE | CommandQueueFlagBits::TRANSFER,
                 .name = mQueue->Info().name + "'s Task Graph Commands, #" + eastl::to_string(mFrameIndex),
             });
-            FlushStagingBuffers(commandBuffer);
-            FlushDynamicBuffers(commandBuffer);
 
-            TaskCommandList wrapper{};
-            wrapper.mCommandBuffer = commandBuffer;
-            u32 batchIndex = 0;
-            for (Batch& batch : mBatches) {
-                commandBuffer->BeginLabel({ .labelColor = LabelColor::BLACK,
-                    .name = "Sync Barriers Batch #" + eastl::to_string(batchIndex) });
-                for (const auto& barrier : batch.imageBarriers) {
-                    commandBuffer->ImageBarrier(barrier);
+            { // TASK GRAPH BEGIN
+                commandBuffer->WriteTimestamp({
+                    .queryPool = mTimestampQueryPools[mFrameIndex],
+                    .stage = PipelineStageFlagBits::TOP_OF_PIPE,
+                    .queryIndex = mBaseGraphTimestampIndex,
+                });
+                { // FLUSHES BEGIN
+                    commandBuffer->WriteTimestamp({
+                        .queryPool = mTimestampQueryPools[mFrameIndex],
+                        .stage = PipelineStageFlagBits::TOP_OF_PIPE,
+                        .queryIndex = mBaseMiscFlushesTimestampIndex,
+                    });
+
+                    FlushStagingBuffers(commandBuffer);
+                    FlushDynamicBuffers(commandBuffer);
+
+                    commandBuffer->WriteTimestamp({
+                        .queryPool = mTimestampQueryPools[mFrameIndex],
+                        .stage = PipelineStageFlagBits::BOTTOM_OF_PIPE,
+                        .queryIndex = mBaseMiscFlushesTimestampIndex + 1,
+                    });
+                } // FLUSHES END
+                TaskCommandList wrapper{};
+                wrapper.mCommandBuffer = commandBuffer;
+                u32 batchIndex = 0;
+                for (Batch& batch : mBatches) {
+                    commandBuffer->BeginLabel({ .labelColor = LabelColor::BLACK,
+                        .name = "Sync Barriers Batch #" + eastl::to_string(batchIndex) });
+                    for (const auto& barrier : batch.imageBarriers) {
+                        commandBuffer->ImageBarrier(barrier);
+                    }
+                    for (const auto& barrier : batch.bufferBarriers) {
+                        commandBuffer->BufferBarrier(barrier);
+                    }
+                    commandBuffer->EndLabel();
+                    for (TaskId taskIndex : batch.taskIds) {
+                        TaskExecute* task = mTasks[taskIndex];
+                        task->mTimestampPool = mTimestampQueryPools[mFrameIndex];
+                        wrapper.mCurrBindPoint = task->GetTask()->GetBindPoint();
+                        task->PreExec(commandBuffer);
+                        task->GetTask()->ExecuteTask(wrapper);
+                        task->PostExec(commandBuffer);
+                    }
+                    ++batchIndex;
                 }
-                for (const auto& barrier : batch.bufferBarriers) {
-                    commandBuffer->BufferBarrier(barrier);
-                }
-                commandBuffer->EndLabel();
-                for (TaskId taskIndex : batch.taskIds) {
-                    TaskExecute* task = mTasks[taskIndex];
-                    wrapper.mCurrBindPoint = task->GetTask()->GetBindPoint();
-                    task->PreExec(commandBuffer);
-                    task->GetTask()->ExecuteTask(wrapper);
-                    task->PostExec(commandBuffer);
-                }
-                ++batchIndex;
-            }
+
+                commandBuffer->WriteTimestamp({
+                    .queryPool = mTimestampQueryPools[mFrameIndex],
+                    .stage = PipelineStageFlagBits::BOTTOM_OF_PIPE,
+                    .queryIndex = mBaseGraphTimestampIndex + 1,
+                });
+            } // TASK GRAPH END
             commandBuffer->Complete();
             mQueue->SubmitCommandBuffer(commandBuffer);
         }
 
+
+        SHOCKGRAPH_API eastl::span<GenericTask*> TaskGraph::GetTasks() {
+            return mAllTaskRefs;
+        }
+
+        SHOCKGRAPH_API f64 TaskGraph::GetTaskTimingsNs(GenericTask* task) {
+            for (TaskExecute* taskExec : mTasks) {
+                if (taskExec->GetTask() != task)
+                    continue;
+                ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
+                eastl::span timestamps = pool->GetTimestamps(taskExec->mBaseTimestampIndex, 2);
+                return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
+            }
+        }
+
+        SHOCKGRAPH_API f64 TaskGraph::GetGraphTimingsNs() {
+            ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
+            eastl::span timestamps = pool->GetTimestamps(mBaseGraphTimestampIndex , 2);
+            return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
+        }
+
+        SHOCKGRAPH_API f64 TaskGraph::GetMiscFlushesTimingsNs() {
+            ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
+            eastl::span timestamps = pool->GetTimestamps(mBaseMiscFlushesTimestampIndex, 2);
+            return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
+        }
 
         void TaskGraph::FlushStagingBuffers(ICommandBuffer* commandBuffer) {
             commandBuffer->BeginLabel({ .labelColor = LabelColor::BLUE,

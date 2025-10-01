@@ -54,6 +54,17 @@
 using namespace PyroshockStudios;
 using namespace PyroshockStudios::Types;
 using namespace VisualTests;
+
+
+/**
+* CONTROLS: 
+* Next RHI: +
+* Prev RHI: -
+* Next Test: >
+* Prev Test: <
+* Print Task Timings: P
+*/
+
 int main(i32 argc, char** argv) {
     VisualTestApp* app = new VisualTestApp();
     app->RegisterTest<VisualTests::HelloTriangle>();

@@ -69,6 +69,23 @@ namespace PyroshockStudios {
                 mLogStream = stream;
             }
 
+            SHOCKGRAPH_API eastl::span<GenericTask*> GetTasks();
+
+            /**
+             * @brief Returns the GPU timings in nanoseconds of a specific task.
+             */
+            SHOCKGRAPH_API f64 GetTaskTimingsNs(GenericTask* task);
+            /**
+             * @brief Returns the GPU timings in nanoseconds of the entire task graph.
+             */
+            SHOCKGRAPH_API f64 GetGraphTimingsNs();
+            /**
+            * @brief Returns the GPU timings in nanoseconds of the per-frame flushes
+            * such as staging buffers, dynamic buffers. This includes both buffer copies
+            * and buffer/image barriers.
+            */
+            SHOCKGRAPH_API f64 GetMiscFlushesTimingsNs();
+
         private:
             void FlushStagingBuffers(ICommandBuffer* commandBuffer);
             void FlushDynamicBuffers(ICommandBuffer* commandBuffer);
@@ -89,8 +106,15 @@ namespace PyroshockStudios {
             eastl::vector<TaskExecute*> mTasks = {};
             eastl::vector<TaskSwapChain> mSwapChains = {};
 
+            eastl::vector<GenericTask*> mAllTaskRefs = {};
+            u32 mBaseGraphTimestampIndex = 0;
+            u32 mBaseMiscFlushesTimestampIndex = 0;
+
             IFence* mGpuFrameTimeline;
             eastl::vector<Semaphore> mRenderFinishedSemaphores;
+            eastl::vector<ITimestampQueryPool*> mTimestampQueryPools;
+
+            
 
             u32 mFrameIndex = 0;
             u32 mFramesInFlight = 0;

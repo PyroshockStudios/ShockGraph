@@ -1,19 +1,4 @@
-# Common
-
-if(NOT TARGET PyroCommon)
-    find_package(PyroCommon CONFIG QUIET)
-    if(NOT PyroCommon_FOUND)
-        set(PYRO_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/PyroCommon" CACHE PATH "Path to PyroCommon")
-        if(NOT EXISTS "${PYRO_COMMON_DIR}/CMakeLists.txt")
-            message(FATAL_ERROR "PyroCommon not found at ${PYRO_COMMON_DIR}")
-        endif()
-        set(PYRO_COMMON_BINARY_DIR "${CMAKE_BINARY_DIR}/PyroCommon")
-        add_subdirectory(${PYRO_COMMON_DIR} ${PYRO_COMMON_BINARY_DIR})
-    endif()
-endif()
-
-# Platform
-
+# common is included in the following two
 
 if(NOT TARGET PyroPlatform)
     find_package(PyroPlatform CONFIG QUIET)

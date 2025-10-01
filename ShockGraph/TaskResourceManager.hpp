@@ -87,6 +87,9 @@ namespace PyroshockStudios {
             PYRO_NODISCARD PYRO_FORCEINLINE IDevice* GetInternalDevice() {
                 return mDevice;
             }
+            PYRO_NODISCARD PYRO_FORCEINLINE RHIContext* GetInternalContext() {
+                return mRHI;
+            }
 
             SHOCKGRAPH_API void InjectLogger(const ILogStream* stream) override {
                 mLogStream = stream;

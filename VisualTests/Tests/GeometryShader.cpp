@@ -21,6 +21,8 @@
 // SOFTWARE.
 
 #include "GeometryShader.hpp"
+#include <PyroRHI/Api/IDevice.hpp>
+#include <PyroRHI/Context.hpp>
 
 namespace VisualTests {
     void GeometryShader::CreateResources(const CreateResourceInfo& info) {
@@ -36,8 +38,10 @@ namespace VisualTests {
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/GeometryShader.slang",
             { .stage = ShaderStage::Vertex, .entryPoint = "vertexMain", .name = "Geometry Shader Vsh" });
-        gsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/GeometryShader.slang",
-            { .stage = ShaderStage::Geometry, .entryPoint = "geometryMain", .name = "Geometry Shader Gsh" });
+        if (info.resourceManager.GetInternalContext()->Properties().bGeometryShader) {
+            gsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/GeometryShader.slang",
+                { .stage = ShaderStage::Geometry, .entryPoint = "geometryMain", .name = "Geometry Shader Gsh" });
+        }
         fsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/GeometryShader.slang",
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "Geometry Shader Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
@@ -47,7 +51,7 @@ namespace VisualTests {
             },
             {
                 .vertexShaderInfo = { TaskShaderInfo{ .program = vsh } },
-                .geometryShaderInfo = { TaskShaderInfo{ .program = gsh } },
+                .geometryShaderInfo = gsh ? eastl::optional{ TaskShaderInfo{ .program = gsh } } : eastl::nullopt,
                 .fragmentShaderInfo = { TaskShaderInfo{ .program = fsh } },
             });
     }

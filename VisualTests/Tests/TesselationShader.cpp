@@ -21,6 +21,8 @@
 // SOFTWARE.
 
 #include "TesselationShader.hpp"
+#include <PyroRHI/Api/IDevice.hpp>
+#include <PyroRHI/Context.hpp>
 
 namespace VisualTests {
     void TesselationShader::CreateResources(const CreateResourceInfo& info) {
@@ -36,10 +38,12 @@ namespace VisualTests {
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/TesselationShader.slang",
             { .stage = ShaderStage::Vertex, .entryPoint = "vertexMain", .name = "Tesselation Shader Vsh" });
-        hsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/TesselationShader.slang",
-            { .stage = ShaderStage::Hull, .entryPoint = "hullMain", .name = "Tesselation Shader Hsh" });
-        dsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/TesselationShader.slang",
-            { .stage = ShaderStage::Domain, .entryPoint = "domainMain", .name = "Tesselation Shader Dsh" });
+        if (info.resourceManager.GetInternalContext()->Properties().bTesselationShader) {
+            hsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/TesselationShader.slang",
+                { .stage = ShaderStage::Hull, .entryPoint = "hullMain", .name = "Tesselation Shader Hsh" });
+            dsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/TesselationShader.slang",
+                { .stage = ShaderStage::Domain, .entryPoint = "domainMain", .name = "Tesselation Shader Dsh" });
+        }
         fsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/TesselationShader.slang",
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "Tesselation Shader Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
@@ -52,8 +56,8 @@ namespace VisualTests {
             },
             {
                 .vertexShaderInfo = { TaskShaderInfo{ .program = vsh } },
-                .hullShaderInfo = { TaskShaderInfo{ .program = hsh } },
-                .domainShaderInfo = { TaskShaderInfo{ .program = dsh } },
+                .hullShaderInfo = hsh ? eastl::optional{ TaskShaderInfo{ .program = hsh } } : eastl::nullopt,
+                .domainShaderInfo = dsh ? eastl::optional{ TaskShaderInfo{ .program = dsh } } : eastl::nullopt,
                 .fragmentShaderInfo = { TaskShaderInfo{ .program = fsh } },
             });
     }

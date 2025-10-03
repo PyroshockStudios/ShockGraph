@@ -604,7 +604,11 @@ namespace PyroshockStudios {
                 .queueFlags = CommandQueueFlagBits::GRAPHICS | CommandQueueFlagBits::COMPUTE | CommandQueueFlagBits::TRANSFER,
                 .name = mQueue->Info().name + "'s Task Graph Commands, #" + eastl::to_string(mFrameIndex),
             });
-
+            commandBuffer->InvalidateTimestampQuery({
+                .queryPool = mTimestampQueryPools[mFrameIndex],
+                .firstQuery = 0,
+                .queryCount = mTimestampQueryPools[mFrameIndex]->Info().queryCount,
+            });
             { // TASK GRAPH BEGIN
                 commandBuffer->WriteTimestamp({
                     .queryPool = mTimestampQueryPools[mFrameIndex],
@@ -674,11 +678,12 @@ namespace PyroshockStudios {
                 eastl::span timestamps = pool->GetTimestamps(taskExec->mBaseTimestampIndex, 2);
                 return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
             }
+            return 0.0;
         }
 
         SHOCKGRAPH_API f64 TaskGraph::GetGraphTimingsNs() {
             ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
-            eastl::span timestamps = pool->GetTimestamps(mBaseGraphTimestampIndex , 2);
+            eastl::span timestamps = pool->GetTimestamps(mBaseGraphTimestampIndex, 2);
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 

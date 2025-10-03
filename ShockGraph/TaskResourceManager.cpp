@@ -86,7 +86,7 @@ namespace PyroshockStudios {
                         .size = info.size,
                         .usage = BufferUsageFlagBits::TRANSFER_SRC | BufferUsageFlagBits::HOST_WRITE,
                         .initialLayout = info.bReadback ? BufferLayout::TransferDst : BufferLayout::TransferSrc,
-                        .allocateUsage = info.bReadback ? MemoryAllocationUsage::HostReadback : MemoryAllocationUsage::HostRandomWrite,
+                        .allocationDomain = info.bReadback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite,
                         .name = info.name + " (In Flight #" + eastl::to_string(i) + ")",
                     });
                 }
@@ -99,7 +99,7 @@ namespace PyroshockStudios {
                     .size = info.size,
                     .usage = info.usage,
                     .initialLayout = info.bCpuVisible ? (info.bReadback ? BufferLayout::TransferDst : BufferLayout::ReadOnly) : BufferLayout::Undefined,
-                    .allocateUsage = info.bCpuVisible ? (info.bReadback ? MemoryAllocationUsage::HostReadback : MemoryAllocationUsage::HostRandomWrite) : MemoryAllocationUsage::DedicatedMemory,
+                    .allocationDomain = info.bCpuVisible ? (info.bReadback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite) : MemoryAllocationDomain::DeviceLocal,
                     .name = info.name,
                 });
             }
@@ -112,7 +112,7 @@ namespace PyroshockStudios {
                     .size = info.size,
                     .usage = BufferUsageFlagBits::TRANSFER_SRC,
                     .initialLayout = BufferLayout::TransferSrc,
-                    .allocateUsage = MemoryAllocationUsage::HostStaging,
+                    .allocationDomain = MemoryAllocationDomain::HostStaging,
                     .name = info.name + " (Staging Buffer)",
                 });
                 memcpy(mDevice->BufferHostAddress(staging), initialData.data(), info.size);
@@ -160,7 +160,7 @@ namespace PyroshockStudios {
                     .size = alignedReqSize,
                     .usage = BufferUsageFlagBits::TRANSFER_SRC,
                     .initialLayout = BufferLayout::TransferSrc,
-                    .allocateUsage = MemoryAllocationUsage::HostStaging,
+                    .allocationDomain = MemoryAllocationDomain::HostStaging,
                     .name = info.name + " (Staging Buffer)",
                 });
 

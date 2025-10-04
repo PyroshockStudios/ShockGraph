@@ -155,9 +155,8 @@ namespace PyroshockStudios {
                 ASSERT(minReqSize > 0, "Invalid format for staging upload");
                 ASSERT(initialData.size_bytes() >= minReqSize, "Initial data is too small in size!");
 
-                const DeviceSize alignedReqSize = RHIUtil::GetRequiredStagingSize(info.format, info.size.x, info.size.y, info.size.z, rowAlignment);
                 Buffer staging = mDevice->CreateBuffer({
-                    .size = alignedReqSize,
+                    .size = mDevice->ImageSizeRequirements(image),
                     .usage = BufferUsageFlagBits::TRANSFER_SRC,
                     .initialLayout = BufferLayout::TransferSrc,
                     .allocationDomain = MemoryAllocationDomain::HostStaging,
@@ -165,7 +164,7 @@ namespace PyroshockStudios {
                 });
 
                 const u32 rowWidth = static_cast<u32>(minReqSize / info.size.z / info.size.y);
-                const u32 rowPitch = static_cast<u32>(alignedReqSize / info.size.z / info.size.y);
+                const u32 rowPitch = mDevice->ImageSubresourceRowPitch(image, {}, rowWidth);
 
                 u8* dstPtr = mDevice->BufferHostAddress(staging);
                 const u8* srcPtr = initialData.data();

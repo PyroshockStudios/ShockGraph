@@ -80,11 +80,11 @@ namespace VisualTests {
         renderVertices = info.resourceManager.CreateRasterPipeline(
             {
                 .colorTargetStates = { { .format = image->Info().format } },
-                .depthStencilState = { {
+                .depthStencilState = eastl::make_optional<DepthStencilStateInfo>(DepthStencilStateInfo{
                     .depthStencilFormat = depth->Info().format,
                     .depthTestState = DepthStencilTestState::ReadWrite,
                     .depthTest = CompareOp::Greater,
-                } },
+                }),
                 .inputAssemblyState = {
                     .primitiveTopology = PrimitiveTopology::TriangleList,
                     .vertexAttributes = eastl::array{

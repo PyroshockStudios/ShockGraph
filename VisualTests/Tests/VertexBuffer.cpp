@@ -96,7 +96,7 @@ namespace VisualTests {
         image = {};
         vbo = {};
         target = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> VertexBuffer::CreateTasks() {

@@ -74,7 +74,7 @@ namespace VisualTests {
         imageMSAA = {};
         target = {};
         targetMSAA = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> AlphaToCoverage::CreateTasks() {

@@ -58,7 +58,9 @@ namespace VisualTests {
     void GeometryShader::ReleaseResources(const ReleaseResourceInfo& info) {
         image = {};
         target = {};
-        vsh, gsh, fsh = {};
+        vsh = {};
+        gsh = {};
+        fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> GeometryShader::CreateTasks() {

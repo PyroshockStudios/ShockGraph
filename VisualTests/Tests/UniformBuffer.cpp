@@ -115,7 +115,7 @@ namespace VisualTests {
         image = {};
         ubo = {};
         target = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> UniformBuffer::CreateTasks() {

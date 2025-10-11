@@ -62,7 +62,7 @@ namespace VisualTests {
     void AlphaBlending::ReleaseResources(const ReleaseResourceInfo& info) {
         image = {};
         target = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> AlphaBlending::CreateTasks() {

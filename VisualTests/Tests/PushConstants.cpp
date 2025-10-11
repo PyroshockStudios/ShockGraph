@@ -51,7 +51,7 @@ namespace VisualTests {
     void PushConstants::ReleaseResources(const ReleaseResourceInfo& info) {
         image = {};
         target = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> PushConstants::CreateTasks() {

@@ -37,15 +37,11 @@ namespace VisualTests {
     class StdoutLogger : public ILogStream {
     public:
         StdoutLogger(const char* name) {
-            usize len = strlen(name);
-            mName = new char[len + 1];
-            strncpy(mName, name, len);
-            memset(mName + len, 0, sizeof(char));
+            mName = name;
         }
-        virtual ~StdoutLogger() {
-            delete[] mName;
+        ~StdoutLogger() {
         }
-        virtual void Log(LogSeverity severity, const char* message) {
+        void Log(LogSeverity severity, const char* message) override {
             const char* sevStr = "";
             switch (severity) {
             case LogSeverity::Verbose:
@@ -77,15 +73,15 @@ namespace VisualTests {
                 abort();
             }
         }
-        virtual LogSeverity MinSeverity() const {
+        LogSeverity MinSeverity() const override {
             return LogSeverity::Trace;
         }
-        virtual const char* Name() const override {
-            return mName;
+        const char* Name() const override {
+            return mName.c_str();
         }
 
     private:
-        char* mName = nullptr;
+        eastl::string mName = {};
     };
 
     class VisualTestApp {

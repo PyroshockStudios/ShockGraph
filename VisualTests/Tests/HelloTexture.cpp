@@ -81,7 +81,7 @@ namespace VisualTests {
         texture = {};
         info.resourceManager.ReleaseSampler(sampler);
         target = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> HelloTexture::CreateTasks() {

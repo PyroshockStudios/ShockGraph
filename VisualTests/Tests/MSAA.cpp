@@ -79,7 +79,7 @@ namespace VisualTests {
         imageMSAA = {};
         target = {};
         targetMSAA = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline = {};
         pipelineMSAA = {};
     }

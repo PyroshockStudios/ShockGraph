@@ -64,7 +64,10 @@ namespace VisualTests {
     void TesselationShader::ReleaseResources(const ReleaseResourceInfo& info) {
         image = {};
         target = {};
-        vsh, fsh = {};
+        vsh = {};
+        hsh = {};
+        dsh = {};
+        fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> TesselationShader::CreateTasks() {

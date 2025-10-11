@@ -32,10 +32,10 @@
 #include <PyroRHI/Context.hpp>
 #include <libassert/assert.hpp>
 namespace VisualTests {
-    ILogStream* gPlatformSink = nullptr;
-    ILogStream* gRHILoaderSink = nullptr;
-    ILogStream* gRHISink = nullptr;
-    ILogStream* gSGSink = nullptr;
+    StdoutLogger* gPlatformSink = nullptr;
+    StdoutLogger* gRHILoaderSink = nullptr;
+    StdoutLogger* gRHISink = nullptr;
+    StdoutLogger* gSGSink = nullptr;
     ILogStream* gShaderSink = nullptr;
 
 
@@ -72,7 +72,7 @@ namespace VisualTests {
         delete gPlatformSink;
         delete gSGSink;
         delete gRHILoaderSink;
-        delete gShaderSink;
+        delete static_cast<StdoutLogger*>(gShaderSink);
         if (gRHISink) {
             delete gRHISink;
         }

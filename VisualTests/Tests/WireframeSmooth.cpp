@@ -65,7 +65,7 @@ namespace VisualTests {
     void WireframeSmooth::ReleaseResources(const ReleaseResourceInfo& info) {
         image = {};
         target = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> WireframeSmooth::CreateTasks() {

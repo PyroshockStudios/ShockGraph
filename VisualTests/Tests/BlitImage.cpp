@@ -59,7 +59,7 @@ namespace VisualTests {
         image = {};
         blitImage = {};
         target = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> BlitImage::CreateTasks() {

@@ -124,7 +124,7 @@ namespace VisualTests {
         idxUav = {};
         target = {};
         depthTarget = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         renderVertices = {};
         generateVertices = {};
     }

@@ -17,14 +17,14 @@ foreach(_source IN ITEMS ${ENDF6_SRC})
 endforeach()
 
 include(FetchContent)
-    set(SLANG_VERSION "2025.17") 
+    set(SLANG_VERSION "2025.18.2") 
     set(SLANG_ROOT "${CMAKE_BINARY_DIR}/_deps/slang")
     set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}")
 
     if(WIN32)
         set(SLANG_ARCHIVE "slang-${SLANG_VERSION}-windows-x86_64.zip")
     elseif(UNIX AND NOT APPLE)
-        set(SLANG_ARCHIVE "slang-${SLANG_VERSION}-linux-x86_64.zip")
+        set(SLANG_ARCHIVE "slang-${SLANG_VERSION}-linux-x86_64-glibc-2.27.zip") # use older glibc version
     elseif(APPLE)
         # Detect architecture: x86_64 or arm64
         execute_process(

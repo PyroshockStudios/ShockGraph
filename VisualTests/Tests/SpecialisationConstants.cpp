@@ -80,7 +80,7 @@ namespace VisualTests {
     void SpecialisationConstants::ReleaseResources(const ReleaseResourceInfo& info) {
         image = {};
         target = {};
-        vsh, fsh = {};
+        vsh = {}; fsh = {};
         pipeline0 = {};
         pipeline1 = {};
     }

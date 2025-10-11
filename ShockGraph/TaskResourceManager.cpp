@@ -84,7 +84,7 @@ namespace PyroshockStudios {
                 for (i32 i = 0; i < mFramesInFlight; ++i) {
                     buffersInFlight[i] = mDevice->CreateBuffer({
                         .size = info.size,
-                        .usage = BufferUsageFlagBits::TRANSFER_SRC | BufferUsageFlagBits::HOST_WRITE,
+                        .usage = BufferUsageFlagBits::TRANSFER_SRC | BufferUsageFlagBits::HOST_WRITE | extraRequiredFlags,
                         .initialLayout = info.bReadback ? BufferLayout::TransferDst : BufferLayout::TransferSrc,
                         .allocationDomain = info.bReadback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite,
                         .name = info.name + " (In Flight #" + eastl::to_string(i) + ")",
@@ -97,7 +97,7 @@ namespace PyroshockStudios {
             } else {
                 buffer = mDevice->CreateBuffer({
                     .size = info.size,
-                    .usage = info.usage,
+                    .usage = info.usage | extraRequiredFlags,
                     .initialLayout = info.bCpuVisible ? (info.bReadback ? BufferLayout::TransferDst : BufferLayout::ReadOnly) : BufferLayout::Undefined,
                     .allocationDomain = info.bCpuVisible ? (info.bReadback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite) : MemoryAllocationDomain::DeviceLocal,
                     .name = info.name,
@@ -139,7 +139,7 @@ namespace PyroshockStudios {
                 extraRequiredFlags |= ImageUsageFlagBits::TRANSFER_DST;
             }
             Image image = mDevice->CreateImage({
-                .dimensions = info.size.z > 1u ? 3u : (info.size.y > 1u ? 2u : 1u),
+                .dimensions = info.dimensions,
                 .format = info.format,
                 .size = info.size,
                 .mipLevelCount = info.mipLevelCount,
@@ -203,13 +203,13 @@ namespace PyroshockStudios {
                 resourceInfo.viewType = resourceInfo.slice.layerCount > 1 ? ImageViewType::eCubeArray : ImageViewType::eCube;
             } else {
                 switch (imageInfo.dimensions) {
-                case 1:
+                case ImageDimensions::e1D:
                     resourceInfo.viewType = resourceInfo.slice.layerCount > 1 ? ImageViewType::e1DArray : ImageViewType::e1D;
                     break;
-                case 2:
+                case ImageDimensions::e2D:
                     resourceInfo.viewType = resourceInfo.slice.layerCount > 1 ? ImageViewType::e2DArray : ImageViewType::e2D;
                     break;
-                case 3:
+                case ImageDimensions::e3D:
                     resourceInfo.viewType = ImageViewType::e3D;
                     break;
                 };

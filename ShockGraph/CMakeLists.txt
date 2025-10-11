@@ -41,6 +41,16 @@ if(SHOCKGRAPH_USE_PYRO_PLATFORM)
 target_link_libraries(ShockGraph PUBLIC PyroPlatform::PyroPlatform)
 endif()
 
+
+if(PYRO_RHI_BUILD_VULKAN)
+add_dependencies(ShockGraph RHIVulkan)
+endif()
+if(PYRO_RHI_BUILD_DX12)
+add_dependencies(ShockGraph RHIDX12)
+endif()
+
+
+
 # windows cope
 set_target_properties(ShockGraph PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS YES)
 set_target_properties(ShockGraph PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")

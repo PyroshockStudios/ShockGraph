@@ -91,7 +91,7 @@ namespace PyroshockStudios {
                 return mRHI;
             }
 
-            SHOCKGRAPH_API void InjectLogger(const ILogStream* stream) override {
+            SHOCKGRAPH_API void InjectLogger(ILogStream* stream) override {
                 mLogStream = stream;
             }
 
@@ -126,7 +126,7 @@ namespace PyroshockStudios {
             u32 mFramesInFlight = {};
 
             IShaderReloadListener* mShaderReloadListener = nullptr;
-            const ILogStream* mLogStream = nullptr;
+            ILogStream* mLogStream = nullptr;
 
             friend class TaskGraph;
             friend struct TaskResource_;

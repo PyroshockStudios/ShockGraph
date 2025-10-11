@@ -39,7 +39,7 @@ namespace VisualTests {
         imageMSAA = info.resourceManager.CreatePersistentImage({
             .format = Format::RGBA8Unorm,
             .size = { info.displayInfo.width, info.displayInfo.height },
-            .sampleCount = static_cast<u32>(sampleCount),
+            .sampleCount = sampleCount,
             .usage = ImageUsageFlagBits::RENDER_TARGET,
             .name = "AlphaToCoverage MSAA Render Image",
         });

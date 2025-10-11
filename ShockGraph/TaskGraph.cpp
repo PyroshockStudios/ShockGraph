@@ -590,18 +590,18 @@ namespace PyroshockStudios {
             for (TaskSwapChain& swapChain : mSwapChains) {
                 mQueue->SubmitSwapChain(swapChain->Internal());
             }
-            eastl::array signalTimeline = { eastl::pair{ mGpuFrameTimeline, mCpuTimelineIndex } };
-            eastl::array signalBinary = { mRenderFinishedSemaphores[mFrameIndex] };
-            mDevice->SubmitQueue({ mQueue, signalBinary, signalTimeline });
-            mDevice->PresentQueue({ mQueue, signalBinary });
+            eastl::array signalTimeline = { FenceSubmitInfo{ mGpuFrameTimeline, mCpuTimelineIndex } };
+            eastl::array signalBinary = { SemaphoreSubmitInfo{ mRenderFinishedSemaphores[mFrameIndex], PipelineStageFlagBits::ALL_COMMANDS } };
+            eastl::array waitBinary = { mRenderFinishedSemaphores[mFrameIndex] };
+            mDevice->SubmitQueue({ .queue = mQueue, .signalPresentReadySemaphores = signalBinary, .signalFences = signalTimeline });
+            mDevice->PresentQueue({ .queue = mQueue, .waitSemaphores = waitBinary });
             mFrameIndex = (mFrameIndex + 1) % mFramesInFlight;
             bInFrame = false;
         }
         SHOCKGRAPH_API void TaskGraph::Execute() {
             ASSERT(bInFrame, "Do not call Execute() outside of a frame!");
 
-            ICommandBuffer* commandBuffer = mDevice->GetCommandBuffer({
-                .queueFlags = CommandQueueFlagBits::GRAPHICS | CommandQueueFlagBits::COMPUTE | CommandQueueFlagBits::TRANSFER,
+            ICommandBuffer* commandBuffer = mQueue->GetCommandBuffer({
                 .name = mQueue->Info().name + "'s Task Graph Commands, #" + eastl::to_string(mFrameIndex),
             });
             commandBuffer->InvalidateTimestampQuery({

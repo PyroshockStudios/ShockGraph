@@ -60,7 +60,7 @@ namespace PyroshockStudios {
 
             SHOCKGRAPH_API eastl::vector<RHIInfo> QueryAvailableRHIs() const;
 
-            SHOCKGRAPH_API void InjectLogger(const ILogStream* stream) override {
+            SHOCKGRAPH_API void InjectLogger(ILogStream* stream) override {
                 mLogStream = stream;
             }
 
@@ -74,7 +74,7 @@ namespace PyroshockStudios {
             AttachableRHIInfo mAttachedRHIInfo = {};
             RHIContextApiInfo mRhiApi = {};
             IDevice* mRhiDevice = nullptr;
-            const ILogStream* mLogStream = nullptr;
+            ILogStream* mLogStream = nullptr;
         };
     } // namespace Renderer
 } // namespace PyroshockStudios

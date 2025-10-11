@@ -27,5 +27,5 @@
 using namespace PyroshockStudios;
 using namespace PyroshockStudios::Types;
 namespace VisualTests {
-    extern const ILogStream* gShaderSink;
+    extern ILogStream* gShaderSink;
 } // namespace VisualTests

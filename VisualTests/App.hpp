@@ -45,7 +45,7 @@ namespace VisualTests {
         virtual ~StdoutLogger() {
             delete[] mName;
         }
-        virtual void Log(LogSeverity severity, const char* message) const {
+        virtual void Log(LogSeverity severity, const char* message) {
             const char* sevStr = "";
             switch (severity) {
             case LogSeverity::Verbose:
@@ -85,7 +85,7 @@ namespace VisualTests {
         }
 
     private:
-         char* mName = nullptr;
+        char* mName = nullptr;
     };
 
     class VisualTestApp {

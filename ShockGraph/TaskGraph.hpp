@@ -65,7 +65,7 @@ namespace PyroshockStudios {
 
             PYRO_NODISCARD SHOCKGRAPH_API eastl::string ToString();
 
-            SHOCKGRAPH_API void InjectLogger(const ILogStream* stream) override {
+            SHOCKGRAPH_API void InjectLogger(ILogStream* stream) override {
                 mLogStream = stream;
             }
 
@@ -80,10 +80,10 @@ namespace PyroshockStudios {
              */
             SHOCKGRAPH_API f64 GetGraphTimingsNs();
             /**
-            * @brief Returns the GPU timings in nanoseconds of the per-frame flushes
-            * such as staging buffers, dynamic buffers. This includes both buffer copies
-            * and buffer/image barriers.
-            */
+             * @brief Returns the GPU timings in nanoseconds of the per-frame flushes
+             * such as staging buffers, dynamic buffers. This includes both buffer copies
+             * and buffer/image barriers.
+             */
             SHOCKGRAPH_API f64 GetMiscFlushesTimingsNs();
 
         private:
@@ -114,15 +114,13 @@ namespace PyroshockStudios {
             eastl::vector<Semaphore> mRenderFinishedSemaphores;
             eastl::vector<ITimestampQueryPool*> mTimestampQueryPools;
 
-            
-
             u32 mFrameIndex = 0;
             u32 mFramesInFlight = 0;
             u64 mCpuTimelineIndex = 0;
             bool bInFrame = false;
             bool bBaked = false;
 
-            const ILogStream* mLogStream = nullptr;
+            ILogStream* mLogStream = nullptr;
         };
     } // namespace Renderer
 } // namespace PyroshockStudios

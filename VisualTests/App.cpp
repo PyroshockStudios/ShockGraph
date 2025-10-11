@@ -32,13 +32,11 @@
 #include <PyroRHI/Context.hpp>
 #include <libassert/assert.hpp>
 namespace VisualTests {
-
-
-    const ILogStream* gPlatformSink = nullptr;
-    const ILogStream* gRHILoaderSink = nullptr;
-    const ILogStream* gRHISink = nullptr;
-    const ILogStream* gSGSink = nullptr;
-    const ILogStream* gShaderSink = nullptr;
+    ILogStream* gPlatformSink = nullptr;
+    ILogStream* gRHILoaderSink = nullptr;
+    ILogStream* gRHISink = nullptr;
+    ILogStream* gSGSink = nullptr;
+    ILogStream* gShaderSink = nullptr;
 
 
     constexpr u32 FRAMES_IN_FLIGHT = 3;
@@ -64,6 +62,13 @@ namespace VisualTests {
         mSwapChain = nullptr;
         PlatformFactory::Get<IWindowManager>()->DestroyWindow(mActiveWindow);
         PlatformFactory::Get<IWindowManager>()->Terminate();
+
+        mTests.clear();
+        mCurrentTestTasks.clear();
+        mShaderCompiler = nullptr;
+        mTaskResourceManager = nullptr;
+        mTaskRenderGraph = nullptr;
+        mRHIManager = nullptr;
         delete gPlatformSink;
         delete gSGSink;
         delete gRHILoaderSink;

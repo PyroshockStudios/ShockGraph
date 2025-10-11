@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "chrono": "cpp",
-        "regex": "cpp",
-        "thread": "cpp",
-        "vector": "cpp"
-    }
-}

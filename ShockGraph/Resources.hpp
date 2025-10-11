@@ -222,11 +222,12 @@ namespace PyroshockStudios {
         using TaskBufferRef = TaskBuffer&;
 
         struct TaskImageInfo {
+            ImageDimensions dimensions = ImageDimensions::e2D;
             Format format = Format::RGBA8Unorm;
             Extent3D size = {};
             u32 mipLevelCount = 1;
             u32 arrayLayerCount = 1;
-            u32 sampleCount = 1;
+            RasterizationSamples sampleCount = RasterizationSamples::e1;
             ImageUsageFlags usage = {};
             eastl::string name = {};
         };

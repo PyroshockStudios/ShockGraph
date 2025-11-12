@@ -56,6 +56,20 @@ namespace PyroshockStudios {
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator==(const TaskImageDependencyInfo&) const = default;
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator!=(const TaskImageDependencyInfo&) const = default;
         };
+        struct TaskBlasDependencyInfo {
+            TaskBlas blas;
+            TaskAccessType access;
+
+            PYRO_NODISCARD PYRO_FORCEINLINE bool operator==(const TaskBlasDependencyInfo&) const = default;
+            PYRO_NODISCARD PYRO_FORCEINLINE bool operator!=(const TaskBlasDependencyInfo&) const = default;
+        };
+        struct TaskTlasDependencyInfo {
+            TaskTlas tlas;
+            TaskAccessType access;
+
+            PYRO_NODISCARD PYRO_FORCEINLINE bool operator==(const TaskTlasDependencyInfo&) const = default;
+            PYRO_NODISCARD PYRO_FORCEINLINE bool operator!=(const TaskTlasDependencyInfo&) const = default;
+        };
 
         struct TaskInfo {
             eastl::string name = {};
@@ -80,6 +94,8 @@ namespace PyroshockStudios {
 
             SHOCKGRAPH_API void UseBuffer(const TaskBufferDependencyInfo& info);
             SHOCKGRAPH_API void UseImage(const TaskImageDependencyInfo& info);
+            SHOCKGRAPH_API void UseBlas(const TaskBlasDependencyInfo& info);
+            SHOCKGRAPH_API void UseTlas(const TaskTlasDependencyInfo& info);
 
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskInfo& Info() const {
                 return mTaskInfo;
@@ -89,6 +105,8 @@ namespace PyroshockStudios {
             struct GenericSetup {
                 eastl::vector<TaskBufferDependencyInfo> bufferDepends;
                 eastl::vector<TaskImageDependencyInfo> imageDepends;
+                eastl::vector<TaskBlasDependencyInfo> blasDepends;
+                eastl::vector<TaskTlasDependencyInfo> tlasDepends;
             };
 
             GenericSetup mSetupData = {};

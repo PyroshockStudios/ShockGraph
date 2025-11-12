@@ -26,7 +26,7 @@
 
 namespace VisualTests {
     void MSAA::CreateResources(const CreateResourceInfo& info) {
-        RasterizationSamples sampleCount = info.resourceManager.GetInternalDevice()->GetProperties().maxRenderTargetSamples;
+        RasterizationSamples sampleCount = info.resourceManager.GetInternalDevice()->Properties().msaaSupportColorTarget;
         image = info.resourceManager.CreatePersistentImage({
             .format = Format::RGBA8Unorm,
             .size = { info.displayInfo.width, info.displayInfo.height },
@@ -97,15 +97,15 @@ namespace VisualTests {
                 [this](TaskCommandList& commands) {
                     commands.SetViewport({
                         .x = 0.0f,
-                        .y = static_cast<f32>(image->Info().size.y / 4),
-                        .width = static_cast<f32>(image->Info().size.x / 2),
-                        .height = static_cast<f32>(image->Info().size.y / 2),
+                        .y = static_cast<f32>(image->Info().size.height / 4),
+                        .width = static_cast<f32>(image->Info().size.width / 2),
+                        .height = static_cast<f32>(image->Info().size.height / 2),
                     });
                     commands.SetScissor({
                         .x = 0,
-                        .y = static_cast<i32>(image->Info().size.y / 4),
-                        .width = static_cast<i32>(image->Info().size.x / 2),
-                        .height = static_cast<i32>(image->Info().size.y / 2),
+                        .y = static_cast<i32>(image->Info().size.height / 4),
+                        .width = static_cast<i32>(image->Info().size.width / 2),
+                        .height = static_cast<i32>(image->Info().size.height / 2),
                     });
                     commands.SetRasterPipeline(pipelineMSAA);
                     commands.Draw({ .vertexCount = 3 });
@@ -119,16 +119,16 @@ namespace VisualTests {
                 },
                 [this](TaskCommandList& commands) {
                     commands.SetViewport({
-                        .x = static_cast<f32>(image->Info().size.x / 2),
-                        .y = static_cast<f32>(image->Info().size.y / 4),
-                        .width = static_cast<f32>(image->Info().size.x / 2),
-                        .height = static_cast<f32>(image->Info().size.y / 2),
+                        .x = static_cast<f32>(image->Info().size.width / 2),
+                        .y = static_cast<f32>(image->Info().size.height / 4),
+                        .width = static_cast<f32>(image->Info().size.width / 2),
+                        .height = static_cast<f32>(image->Info().size.height / 2),
                     });
                     commands.SetScissor({
-                        .x = static_cast<i32>(image->Info().size.x / 2),
-                        .y = static_cast<i32>(image->Info().size.y / 4),
-                        .width = static_cast<i32>(image->Info().size.x / 2),
-                        .height = static_cast<i32>(image->Info().size.y / 2),
+                        .x = static_cast<i32>(image->Info().size.width / 2),
+                        .y = static_cast<i32>(image->Info().size.height / 4),
+                        .width = static_cast<i32>(image->Info().size.width / 2),
+                        .height = static_cast<i32>(image->Info().size.height / 2),
                     });
                     commands.SetRasterPipeline(pipeline);
                     commands.Draw({ .vertexCount = 3 });

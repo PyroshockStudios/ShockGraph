@@ -20,8 +20,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
-
 #include "Resources.hpp"
 #include "TaskResourceManager.hpp"
 #include <PyroCommon/Core.hpp>
@@ -165,6 +163,18 @@ namespace PyroshockStudios {
         }
         SHOCKGRAPH_API TaskSwapChain_::~TaskSwapChain_() {
             Device()->Destroy(mSwapChain);
+        }
+        SHOCKGRAPH_API TaskBlas_::TaskBlas_(TaskResourceManager* owner, const TaskBlasInfo& info, BlasId&& blas)
+            : TaskResource_(owner), mBlas(blas), mInfo(info) {
+        }
+        SHOCKGRAPH_API TaskBlas_::~TaskBlas_() {
+            Device()->Destroy(mBlas);
+        }
+        SHOCKGRAPH_API TaskTlas_::TaskTlas_(TaskResourceManager* owner, const TaskTlasInfo& info, TlasId&& tlas)
+            : TaskResource_(owner), mTlas(tlas), mInfo(info) {
+        }
+        SHOCKGRAPH_API TaskTlas_::~TaskTlas_() {
+            Device()->Destroy(mTlas);
         }
     } // namespace Renderer
 } // namespace PyroshockStudios

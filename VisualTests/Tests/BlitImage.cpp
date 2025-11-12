@@ -94,8 +94,8 @@ namespace VisualTests {
 
                     // Destination layout: 2x2 grid in dst image
                     // Each quadrant will test a different blit configuration
-                    i32 halfW = dstDim.x / 2;
-                    i32 halfH = dstDim.y / 2;
+                    i32 halfW = dstDim.width / 2;
+                    i32 halfH = dstDim.height / 2;
 
                     // Configurations to test
                     struct TestConfig {
@@ -108,34 +108,48 @@ namespace VisualTests {
 
                     // 0: "Clear" blit. Blit from empty src to full dst
                     tests.push_back({ { 0, 0, 1, 1 },
-                        { 0, 0, (i32)dstDim.x, (i32)dstDim.y },
+                        { 0, 0, (i32)dstDim.width, (i32)dstDim.height },
                         Filter::Nearest });
 
                     // 1: Full source -> top-left quadrant, nearest filter
-                    tests.push_back({ { 0, 0, (i32)srcDim.x, (i32)srcDim.y },
+                    tests.push_back({ { 0, 0, (i32)srcDim.width, (i32)srcDim.height },
                         { 0, halfH, halfW, halfH },
                         Filter::Nearest });
 
                     // 2: Center quarter of source -> top-right quadrant, linear filter
-                    tests.push_back({ { (i32)srcDim.x / 4, (i32)srcDim.y / 4,
-                                          (i32)srcDim.x / 2, (i32)srcDim.y / 2 },
+                    tests.push_back({ { (i32)srcDim.width / 4, (i32)srcDim.height / 4,
+                                          (i32)srcDim.width / 2, (i32)srcDim.height / 2 },
                         { halfW, halfH, halfW, halfH },
                         Filter::Linear });
 
                     // 3: Flipped X source -> bottom-left quadrant, nearest filter
-                    tests.push_back({ { (i32)srcDim.x, 0, -(i32)srcDim.x, (i32)srcDim.y },
+                    tests.push_back({ { (i32)srcDim.width, 0, -(i32)srcDim.width, (i32)srcDim.height },
                         { 0, 0, halfW, halfH },
                         Filter::Nearest });
 
                     // 4: Flipped Y + scaled -> bottom-right quadrant, linear filter
-                    tests.push_back({ { 0, (i32)srcDim.y, (i32)srcDim.x, -(i32)srcDim.y },
+                    tests.push_back({ { 0, (i32)srcDim.height, (i32)srcDim.width, -(i32)srcDim.height },
                         { halfW + halfW / 4, halfH / 4, halfW / 2, halfH / 2 },
                         Filter::Linear });
 
                     // Now run all blits
                     for (auto& t : tests) {
-                        blitInfo.srcImageRect = t.srcRect;
-                        blitInfo.dstImageRect = t.dstRect;
+                        blitInfo.srcImageBox = { 
+                            .x = t.srcRect.x, 
+                            .y = t.srcRect.y, 
+                            .z = 0, 
+                            .width = t.srcRect.width, 
+                            .height = t.srcRect.height, 
+                            .depth = 1 
+                        };
+                        blitInfo.dstImageBox = { 
+                            .x = t.dstRect.x, 
+                            .y = t.dstRect.y, 
+                            .z = 0, 
+                            .width = t.dstRect.width, 
+                            .height = t.dstRect.height, 
+                            .depth = 1 
+                        };
                         blitInfo.filter = t.filter;
 
                         commands->BlitImageToImage(blitInfo);

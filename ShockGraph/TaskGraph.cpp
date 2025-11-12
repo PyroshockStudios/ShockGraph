@@ -302,8 +302,8 @@ namespace PyroshockStudios {
                 ASSERT(false, "NO render targets defined!");
             }
             renderPassInfo.renderArea = {
-                .width = static_cast<i32>(extent.x),
-                .height = static_cast<i32>(extent.y),
+                .width = static_cast<i32>(extent.width),
+                .height = static_cast<i32>(extent.height),
             };
             mAllTaskRefs.push_back(task);
             mTasks.push_back(new GraphicsTaskExecute(task, eastl::move(renderPassInfo)));
@@ -347,10 +347,11 @@ namespace PyroshockStudios {
                     task.UseImage({ .image = writeInfo.image, .access = AccessConsts::BLIT_READ });
                 },
                 [this, writeInfo](ICommandBuffer* commandBuffer) {
-                    Image swapImage = writeInfo.swapChain->Internal()->AcquireNextImage();
-                    if (!swapImage) {
+                    i32 result = writeInfo.swapChain->Internal()->AcquireNextImage();
+                    if (result == PYRO_SWAPCHAIN_ACQUIRE_FAIL) {
                         return;
                     }
+                    Image swapImage = writeInfo.swapChain->Internal()->GetBackBuffer(result);
                     commandBuffer->ImageBarrier({
                         .image = swapImage,
                         .srcAccess = AccessConsts::BOTTOM_OF_PIPE_READ,
@@ -361,8 +362,22 @@ namespace PyroshockStudios {
                     commandBuffer->BlitImageToImage({
                         .srcImage = writeInfo.image->Internal(),
                         .dstImage = swapImage,
-                        .srcImageRect = writeInfo.srcRect,
-                        .dstImageRect = writeInfo.dstRect,
+                        .srcImageBox = { 
+                            .x = writeInfo.srcRect.x, 
+                            .y = writeInfo.srcRect.y, 
+                            .z = 0, 
+                            .width = writeInfo.srcRect.width, 
+                            .height = writeInfo.srcRect.height, 
+                            .depth = 1 
+                        },
+                        .dstImageBox = { 
+                            .x = writeInfo.dstRect.x, 
+                            .y = writeInfo.dstRect.y, 
+                            .z = 0, 
+                            .width = writeInfo.dstRect.width, 
+                            .height = writeInfo.dstRect.height, 
+                            .depth = 1 
+                        },
                     });
                     commandBuffer->ImageBarrier({
                         .image = swapImage,
@@ -696,7 +711,7 @@ namespace PyroshockStudios {
         void TaskGraph::FlushStagingBuffers(ICommandBuffer* commandBuffer) {
             commandBuffer->BeginLabel({ .labelColor = LabelColor::BLUE,
                 .name = "Flush staging buffers" });
-            for (const auto& uploadPair : mResourceManager->mPendingStagingUploads) {
+            for (auto& uploadPair : mResourceManager->mPendingStagingUploads) {
                 commandBuffer->BufferBarrier({
                     .buffer = uploadPair.srcBuffer,
                     .srcAccess = AccessConsts::HOST_WRITE,
@@ -704,7 +719,7 @@ namespace PyroshockStudios {
                     .srcLayout = BufferLayout::TransferSrc,
                     .dstLayout = BufferLayout::TransferSrc,
                 });
-                for (const auto& stagingUpload : uploadPair.uploads) {
+                for (auto& stagingUpload : uploadPair.uploads) {
                     if (stagingUpload.dstBuffer) {
                         commandBuffer->BufferBarrier({
                             .buffer = stagingUpload.dstBuffer,
@@ -749,7 +764,7 @@ namespace PyroshockStudios {
                         });
                     }
                 }
-                commandBuffer->DestroyDeferred(uploadPair.srcBuffer);
+                mDevice->Destroy(uploadPair.srcBuffer, true);
             }
             mResourceManager->mPendingStagingUploads.clear();
 

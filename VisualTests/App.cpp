@@ -244,6 +244,14 @@ namespace VisualTests {
                 CreateRHI();
                 return;
             }
+
+            if(strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "dx12") == 0) {
+                mRHIManager->GetRHIDevice()->SetShaderModel(0x65);
+            }
+
+            if(strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "vk13") == 0) {
+                mRHIManager->GetRHIDevice()->SetShaderModel(0x14);
+            }
         } else {
             Logger::Fatal(gRHILoaderSink, "Failed to find a suitable RHI!");
         }
@@ -295,7 +303,7 @@ namespace VisualTests {
             mCurrentTestTasks.emplace_back(eastl::unique_ptr<GenericTask>(task));
         }
         TaskImage toComposite = ActiveTest()->GetCompositeImageTaskGraph();
-        Rect2D srcRect = Rect2D::Cut({ toComposite->Info().size.x, toComposite->Info().size.y });
+        Rect2D srcRect = Rect2D::Cut({ toComposite->Info().size.width, toComposite->Info().size.height });
         Rect2D dstRect = Rect2D::Cut({ mActiveWindow->GetSize().width, mActiveWindow->GetSize().height });
         if (mRHIManager->GetAttachedRHI()->Properties().viewportConvention == RHIViewportConvention::LeftHanded_OriginTopLeft) {
             dstRect.y = dstRect.height;

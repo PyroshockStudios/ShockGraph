@@ -33,6 +33,7 @@
 #include <PyroRHI/Api/RenderTarget.hpp>
 #include <PyroRHI/Api/Types.hpp>
 #include <PyroRHI/Shader/ShaderProgram.hpp>
+#include <PyroRHI/Api/AccelerationStructure.hpp>
 #include <ShockGraph/Core.hpp>
 
 namespace PyroshockStudios {
@@ -335,5 +336,49 @@ namespace PyroshockStudios {
         };
         using TaskSwapChain = SharedRef<TaskSwapChain_>;
         using TaskSwapChainRef = TaskSwapChain&;
+
+        struct TaskBlasInfo {
+            usize size = 0;
+            eastl::string name = {};
+        };
+        struct TaskBlas_ final : public TaskResource_ {
+            SHOCKGRAPH_API TaskBlas_(TaskResourceManager* owner, const TaskBlasInfo& info, BlasId&& blas);
+            SHOCKGRAPH_API ~TaskBlas_() override;
+            PYRO_NODISCARD PYRO_FORCEINLINE BlasId Internal() {
+                return mBlas;
+            }
+            PYRO_NODISCARD PYRO_FORCEINLINE const TaskBlasInfo& Info() const { return mInfo; }
+
+        private:
+            BlasId mBlas = PYRO_NULL_BLAS;
+            TaskBlasInfo mInfo;
+
+            friend class TaskResourceManager;
+            friend class TaskGraph;
+        };
+        using TaskBlas = SharedRef<TaskBlas_>;
+        using TaskBlasRef = TaskBlas&;
+
+        struct TaskTlasInfo {
+            usize size = 0;
+            eastl::string name = {};
+        };
+        struct TaskTlas_ final : public TaskResource_ {
+            SHOCKGRAPH_API TaskTlas_(TaskResourceManager* owner, const TaskTlasInfo& info, TlasId&& tlas);
+            SHOCKGRAPH_API ~TaskTlas_() override;
+            PYRO_NODISCARD PYRO_FORCEINLINE TlasId Internal() {
+                return mTlas;
+            }
+            PYRO_NODISCARD PYRO_FORCEINLINE const TaskTlasInfo& Info() const { return mInfo; }
+
+        private:
+            TlasId mTlas = PYRO_NULL_TLAS;
+            TaskTlasInfo mInfo;
+
+            friend class TaskResourceManager;
+            friend class TaskGraph;
+        };
+        using TaskTlas = SharedRef<TaskTlas_>;
+        using TaskTlasRef = TaskTlas&;
     } // namespace Renderer
 } // namespace PyroshockStudios

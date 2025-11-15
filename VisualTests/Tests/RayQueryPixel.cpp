@@ -76,7 +76,8 @@ namespace VisualTests {
 
         // Prepare RHI Blas geometry info
         BlasTriangleGeometryInfo triGeo{};
-        triGeo.flags = AccelerationStructureGeometryFlagBits::OPAQUE;
+        triGeo.flags = AccelerationStructureGeometryFlagBits::OPAQUE | 
+            AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
         triGeo.vertexFormat = Format::RGB32Sfloat;
         triGeo.indexType = IndexType::Uint32;
         triGeo.vertexBuffer = vertexBuffer->Internal();
@@ -84,10 +85,10 @@ namespace VisualTests {
         triGeo.vertexStride = sizeof(SimpleVertex);
         triGeo.vertexCount = 4;
         triGeo.indexCount = 6;
-
+      
         eastl::array<BlasTriangleGeometryInfo, 1> geoArray = { triGeo };
         BlasBuildInfo blasBuildInfo = { .geometries = geoArray };
-
+        blasBuildInfo.flags = AccelerationStructureCreateFlagBits::PREFER_FAST_TRACE;
         AccelerationStructureBuildSizesInfo blasSizeInfo = device->BlasSizeRequirements(blasBuildInfo);
 
         // Create BLAS resource
@@ -111,8 +112,10 @@ namespace VisualTests {
 
         // TLAS size requirements
         TlasInstanceInfo tlasInstanceInfo = { .data = instanceBuffer->Internal(), .count = 1 };
-        tlasInstanceInfo.flags = AccelerationStructureGeometryFlagBits::OPAQUE;
+        tlasInstanceInfo.flags = AccelerationStructureGeometryFlagBits::OPAQUE |
+            AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
         TlasBuildInfo tlasBuildInfo = { .instances = tlasInstanceInfo };
+        tlasBuildInfo.flags = AccelerationStructureCreateFlagBits::PREFER_FAST_TRACE;
         AccelerationStructureBuildSizesInfo tlasSizeInfo = device->TlasSizeRequirements(tlasBuildInfo);
 
         // Create TLAS and scratch
@@ -142,14 +145,14 @@ namespace VisualTests {
         instanceData.instanceCustomIndex = 0;
         instanceData.mask = 0xFF;
         instanceData.instanceShaderBindingTableRecordOffset = 0;
-        instanceData.flags = AccelerationStructureGeometryInstanceFlagBits::TRIANGLE_FACING_CULL_DISABLE;
+        instanceData.flags = AccelerationStructureGeometryInstanceFlagBits::TRIANGLE_FACING_CULL_DISABLE | 
+            AccelerationStructureGeometryInstanceFlagBits::FORCE_OPAQUE;
         instanceData.blasAddress = blas->InstanceAddress();
-
 
         blasBuildInfo.geometries = geoArray;
         blasBuildInfo.dstBlas = blas->Internal();
         blasBuildInfo.scratchBuffer = blasScratchBuffer->Internal();
-
+        
         tlasBuildInfo.instances = tlasInstanceInfo;
         tlasBuildInfo.dstTlas = tlas->Internal();
         tlasBuildInfo.scratchBuffer = tlasScratchBuffer->Internal();
@@ -194,8 +197,6 @@ namespace VisualTests {
                     .target = imageTarget,
                     .clear = eastl::make_optional<ColorClearValue>(eastl::array<f32, 4>{ 0, 0, 0, 0 }),
                 });
-                task.UseAccelerationStructure({ .accelerationStructure = blas, .access = AccessConsts::FRAGMENT_SHADER_READ });
-                task.UseAccelerationStructure({ .accelerationStructure = tlas, .access = AccessConsts::FRAGMENT_SHADER_READ });
             },
             [this](TaskCommandList& commands) {
                 commands.SetRasterPipeline(pipeline);

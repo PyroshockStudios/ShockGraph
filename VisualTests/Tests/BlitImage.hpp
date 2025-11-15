@@ -35,6 +35,7 @@ namespace VisualTests {
         bool UseTaskGraph() const override { return true; }
         TaskImage GetCompositeImageTaskGraph() override { return blitImage; }
         Image GetCompositeImageRaw() override { return blitImage->Internal(); }
+        bool TaskSupported(IDevice* device) override { return true; }
 
     private:
         TaskImage image;

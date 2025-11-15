@@ -104,6 +104,14 @@ namespace PyroshockStudios {
                     .allocationDomain = MemoryAllocationDomain::DeviceLocal,
                     .name = info.name,
                 });
+            } else if (info.mode == TaskBufferMode::Host) {
+                buffer = mDevice->CreateBuffer({
+                    .size = info.size,
+                    .usage = info.usage | extraRequiredFlags,
+                    .initialLayout = BufferLayout::ReadOnly,
+                    .allocationDomain = MemoryAllocationDomain::HostRandomWrite,
+                    .name = info.name,
+                });
             } else if (info.mode == TaskBufferMode::Dynamic) {
                 buffer = mDevice->CreateBuffer({
                     .size = info.size,
@@ -137,6 +145,9 @@ namespace PyroshockStudios {
                 mPendingStagingUploads.emplace_back(eastl::move(uploadPair));
             }
 
+            if (info.mode == TaskBufferMode::Host) {
+                buffersInFlight.resize(mFramesInFlight, buffer);
+            }
             TaskBuffer retBuffer = TaskBuffer::Create(this, info, eastl::move(buffer), eastl::move(buffersInFlight));
             if (info.mode == TaskBufferMode::Dynamic || info.mode == TaskBufferMode::HostDynamic || info.mode == TaskBufferMode::Readback) {
                 mDynamicBuffers.emplace_back(retBuffer.Get());

@@ -101,7 +101,7 @@ namespace VisualTests {
         void PrevRHI();
         void NextTest();
         void PrevTest();
-
+        void ReloadTest();
     private:
         void ReleaseTaskResources();
 

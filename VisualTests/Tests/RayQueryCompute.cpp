@@ -149,23 +149,14 @@ namespace VisualTests {
     }
 
     eastl::span<GenericTask*> RayQueryCompute::CreateTasks() {
-        // Task 1: Build BLAS/TLAS
-        GenericTask* buildTask = new CustomCallbackTask(
-            { .name = "Build Acceleration Structures", .color = LabelColor::YELLOW },
+        // Task 1: Build BLAS
+        GenericTask* buildBlasTask = new CustomCallbackTask(
+            { .name = "Build Bottom Level Acceleration Structures", .color = LabelColor::YELLOW },
             [this](CustomTask& task) {
                 // declare buffer usage so task graph orders correctly
-                task.UseBuffer({ .buffer = vertexBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ });
-                task.UseBuffer({ .buffer = indexBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ });
-                task.UseBuffer({ .buffer = instanceBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ });
-                task.UseBuffer({ .buffer = blasScratchBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
-                task.UseBuffer({ .buffer = tlasScratchBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
                 task.UseAccelerationStructure({ .accelerationStructure = blas, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
-                task.UseAccelerationStructure({ .accelerationStructure = tlas, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
             },
             [this](ICommandBuffer* commands) {
-                if (bBuilt)
-                    return;
-                bBuilt = true;
                 //  Prepare RHI build infos
                 BlasTriangleGeometryInfo triGeo{};
                 triGeo.flags = AccelerationStructureGeometryFlagBits::OPAQUE | AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
@@ -183,20 +174,35 @@ namespace VisualTests {
                 blasBuildInfo.dstBlas = blas->Internal();
                 blasBuildInfo.scratchBuffer = blasScratchBuffer->Internal();
 
+                BuildAccelerationStructuresInfo buildInfo = {
+                    .blasBuildInfos = eastl::span<const BlasBuildInfo>(&blasBuildInfo, 1),
+                };
+
+                commands->BuildAccelerationStructures(buildInfo);
+            },
+            TaskType::Transfer);
+        // Task 2: build Tlas
+        GenericTask* buildTlasTask = new CustomCallbackTask(
+            { .name = "Build Top Level Acceleration Structures", .color = LabelColor::YELLOW },
+            [this](CustomTask& task) {
+                // declare buffer usage so task graph orders correctly
+                task.UseAccelerationStructure({ .accelerationStructure = blas, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ });
+                task.UseAccelerationStructure({ .accelerationStructure = tlas, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
+            },
+            [this](ICommandBuffer* commands) {
                 TlasInstanceInfo tlasInstanceInfo = { .data = instanceBuffer->Internal(), .count = 1 };
                 tlasInstanceInfo.flags = AccelerationStructureGeometryFlagBits::OPAQUE | AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
-                
+
                 TlasBuildInfo tlasBuildInfo{};
                 tlasBuildInfo.instances = tlasInstanceInfo;
                 tlasBuildInfo.dstTlas = tlas->Internal();
                 tlasBuildInfo.scratchBuffer = tlasScratchBuffer->Internal();
 
-                BuildAccelerationStructuresInfo buildAllInfo = {
+                BuildAccelerationStructuresInfo buildInfo = {
                     .tlasBuildInfos = eastl::span<const TlasBuildInfo>(&tlasBuildInfo, 1),
-                    .blasBuildInfos = eastl::span<const BlasBuildInfo>(&blasBuildInfo, 1),
                 };
 
-                commands->BuildAccelerationStructures(buildAllInfo);
+                commands->BuildAccelerationStructures(buildInfo);
             },
             TaskType::Transfer);
 
@@ -205,7 +211,6 @@ namespace VisualTests {
             { .name = "RayQuery Compute Dispatch", .color = LabelColor::YELLOW },
             [this](ComputeTask& task) {
                 task.UseImage({ .image = image, .access = AccessConsts::COMPUTE_SHADER_WRITE });
-                task.UseAccelerationStructure({ .accelerationStructure = blas, .access = AccessConsts::COMPUTE_SHADER_READ });
                 task.UseAccelerationStructure({ .accelerationStructure = tlas, .access = AccessConsts::COMPUTE_SHADER_READ });
             },
             [this](TaskCommandList& commands) {
@@ -221,9 +226,11 @@ namespace VisualTests {
                 commands.Dispatch({ .x = gx, .y = gy });
             });
 
-        tasks = { buildTask, dispatchTask };
+        tasks = { buildBlasTask, buildTlasTask, dispatchTask };
 
         return tasks;
     }
+    bool RayQueryCompute::TaskSupported(IDevice* device) { return device->Features().bAccelerationStructureBuild&&
+                                                                  device->Features().bRayQueries; }
 
 } // namespace VisualTests

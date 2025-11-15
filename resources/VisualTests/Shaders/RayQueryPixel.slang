@@ -49,27 +49,25 @@ float4 fragmentMain(VertexOutput input) : SV_Target
     RayDesc ray;
     ray.Origin = origin;
     ray.Direction = direction;
-    ray.TMin = 0.1;
+    ray.TMin = 0.01;
     ray.TMax = 100.0;
 
-    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE> query;
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> query;
 	query.TraceRayInline(
         gTlas[tlasIndex],
-        RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE,
+        0,
         0xFF,
         ray
     );
 
     uint hit = 0;
-	query.Proceed();
+	while (query.Proceed()) {
+		hit = 1; 
+	}
 
 	if (query.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
 	{
 		hit = 1; 
-	}
-	else
-	{
-		hit = 0; // No committed hit found
 	}
 	
     return hit == 1 ? float4(1.0, 0.0, 0.0, 1.0) : float4(0.0, 0.0, 0.0, 1.0); // float4(origin, 1.0);

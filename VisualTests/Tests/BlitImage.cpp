@@ -133,7 +133,20 @@ namespace VisualTests {
                         Filter::Linear });
 
                     // Now run all blits
+
+                    bool bFirst = true;
                     for (auto& t : tests) {
+                        if (!bFirst) {
+                            // apparently blits must have write after write sync on vulkan...
+                            commands->ImageBarrier({
+                                .image = blitInfo.dstImage,
+                                .srcAccess = AccessConsts::BLIT_WRITE,
+                                .dstAccess = AccessConsts::BLIT_WRITE,
+                                .srcLayout = ImageLayout::BlitDst,
+                                .dstLayout = ImageLayout::BlitDst,
+                            });
+                        }
+                        bFirst = false;
                         blitInfo.srcImageBox = { 
                             .x = t.srcRect.x, 
                             .y = t.srcRect.y, 

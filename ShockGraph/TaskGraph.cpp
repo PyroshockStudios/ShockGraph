@@ -723,16 +723,9 @@ namespace PyroshockStudios {
                         task->mTimestampPool = mTimestampQueryPools[mFrameIndex];
                         wrapper.mCurrBindPoint = task->GetTask()->GetBindPoint();
 
-                        AccelerationStructureBarrierInfo barrier{};
-                        barrier.srcAccess = AccessConsts::READ_WRITE;
-                        barrier.dstAccess = AccessConsts::READ_WRITE;
-                        commandBuffer->AccelerationStructureBarrier(barrier);
-
                         task->PreExec(commandBuffer);
                         task->GetTask()->ExecuteTask(wrapper);
                         task->PostExec(commandBuffer);
-
-                        commandBuffer->AccelerationStructureBarrier(barrier);
                     }
                     ++batchIndex;
                 }

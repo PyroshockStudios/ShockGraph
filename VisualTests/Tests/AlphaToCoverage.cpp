@@ -80,7 +80,8 @@ namespace VisualTests {
         imageMSAA = {};
         target = {};
         targetMSAA = {};
-        vsh = {}; fsh = {};
+        vsh = {};
+        fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> AlphaToCoverage::CreateTasks() {
@@ -102,4 +103,5 @@ namespace VisualTests {
         };
         return tasks;
     }
+    bool AlphaToCoverage::TaskSupported(IDevice* device) { return device->Properties().msaaSupportColorTarget > RasterizationSamples::e1; }
 } // namespace VisualTests

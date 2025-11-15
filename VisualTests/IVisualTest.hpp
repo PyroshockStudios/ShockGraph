@@ -59,6 +59,8 @@ namespace VisualTests {
         // Ownership is taken from these tests, do not try to access these tasks anymore inside IVisualTest
         PYRO_NODISCARD virtual eastl::span<GenericTask*> CreateTasks() = 0;
 
+        PYRO_NODISCARD virtual bool TaskSupported(IDevice* device) = 0;
+
         PYRO_NODISCARD virtual bool UseTaskGraph() const = 0;
         PYRO_NODISCARD virtual TaskImage GetCompositeImageTaskGraph() = 0;
         PYRO_NODISCARD virtual Image GetCompositeImageRaw() = 0;

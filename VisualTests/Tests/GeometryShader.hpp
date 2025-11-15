@@ -36,6 +36,8 @@ namespace VisualTests {
         TaskImage GetCompositeImageTaskGraph() override { return image; }
         Image GetCompositeImageRaw() override { return image->Internal(); }
 
+        bool TaskSupported(IDevice* device) override;
+
     private:
         TaskImage image;
         TaskColorTarget target;

@@ -124,17 +124,37 @@ namespace VisualTests {
 
     void VisualTestApp::NextTest() {
         ReleaseTaskResources();
+
         u32 numTests = static_cast<u32>(mTests.size());
+    tryagain: {
         mCurrentTest = (mCurrentTest + 1) % numTests;
+        if (!mTests[mCurrentTest]->TaskSupported(mRHIManager->GetRHIDevice())) {
+            goto tryagain;
+        }
+    }
+
         RebuildTaskGraph();
     }
 
     void VisualTestApp::PrevTest() {
         ReleaseTaskResources();
+
         u32 numTests = static_cast<u32>(mTests.size());
+    tryagain: {
         mCurrentTest = (mCurrentTest + numTests - 1) % numTests;
+        if (!mTests[mCurrentTest]->TaskSupported(mRHIManager->GetRHIDevice())) {
+            goto tryagain;
+        }
+    }
+
         RebuildTaskGraph();
     }
+
+    void VisualTestApp::ReloadTest() {
+        ReleaseTaskResources();
+        RebuildTaskGraph();
+    }
+
 
     void VisualTestApp::ReleaseTaskResources() {
         if (mRHIManager->GetRHIDevice())
@@ -188,6 +208,9 @@ namespace VisualTests {
                 Logger::Info(gSGSink, "-- GRAPH FLUSHES TIMING -- {:.5f} ms", mTaskRenderGraph->GetMiscFlushesTimingsNs() / 1e6);
                 Logger::Info(gSGSink, "--  TOTAL GRAPH TIMING  -- {:.5f} ms", mTaskRenderGraph->GetGraphTimingsNs() / 1e6);
             } break;
+            case KeyCode::KeyR:
+                ReloadTest();
+                break;
             }
         });
     }
@@ -251,11 +274,11 @@ namespace VisualTests {
                 return;
             }
 
-            if(strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "dx12") == 0) {
+            if (strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "dx12") == 0) {
                 mRHIManager->GetRHIDevice()->SetShaderModel(0x65);
             }
 
-            if(strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "vk13") == 0) {
+            if (strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "vk13") == 0) {
                 mRHIManager->GetRHIDevice()->SetShaderModel(0x14);
             }
         } else {

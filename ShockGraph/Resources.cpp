@@ -135,8 +135,10 @@ namespace PyroshockStudios {
             } else {
                 Device()->Destroy(mBuffer);
             }
-            for (auto& buffer : mInFlightBuffers) {
-                Device()->Destroy(buffer);
+            if (this->mInfo.mode != TaskBufferMode::Host) {  // Do not destroy these as they are copies of mBuffer!
+                for (auto& buffer : mInFlightBuffers) {
+                    Device()->Destroy(buffer);
+                }
             }
         }
         SHOCKGRAPH_API u8* TaskBuffer_::MappedMemory() {

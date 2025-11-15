@@ -65,12 +65,11 @@ using namespace VisualTests;
 * Next Test: >
 * Prev Test: <
 * Print Task Timings: P
+* Reload Test: R
 */
 
 int main(i32 argc, char** argv) {
     VisualTestApp* app = new VisualTestApp();
-    app->RegisterTest<VisualTests::RayQueryPixel>();
-    app->RegisterTest<VisualTests::RayQueryCompute>();
     app->RegisterTest<VisualTests::HelloTriangle>();
     app->RegisterTest<VisualTests::PushConstants>();
     app->RegisterTest<VisualTests::UniformBuffer>();
@@ -90,6 +89,8 @@ int main(i32 argc, char** argv) {
     app->RegisterTest<VisualTests::ComputeUAV>();
     app->RegisterTest<VisualTests::BlitImage>();
     app->RegisterTest<VisualTests::UpdateBuffer>();
+    app->RegisterTest<VisualTests::RayQueryPixel>();
+    app->RegisterTest<VisualTests::RayQueryCompute>();
 
     app->Run();
 

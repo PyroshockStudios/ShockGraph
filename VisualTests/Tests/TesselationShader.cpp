@@ -87,4 +87,5 @@ namespace VisualTests {
         };
         return tasks;
     }
+    bool TesselationShader::TaskSupported(IDevice* device) { return device->Features().bTesselationShaders; }
 } // namespace VisualTests

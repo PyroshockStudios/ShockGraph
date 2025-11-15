@@ -40,10 +40,10 @@ namespace VisualTests {
             .name = "Hello Texture RT",
         });
 
-        vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/RayQuery.slang",
-            { .stage = ShaderStage::Vertex, .entryPoint = "vertexMain", .name = "RayQuery Vsh" });
-        fsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/RayQuery.slang",
-            { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "RayQuery Fsh" });
+        vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/RayQueryPixel.slang",
+            { .stage = ShaderStage::Vertex, .entryPoint = "vertexMain", .name = "RayQueryPixel Vsh" });
+        fsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/RayQueryPixel.slang",
+            { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "RayQueryPixel Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
                 .colorTargetStates = { { .format = image->Info().format } },
@@ -59,7 +59,7 @@ namespace VisualTests {
             {
                 .size = sizeof(SimpleVertex) * 4,
                 .usage = BufferUsageFlagBits::BLAS_GEOMETRY_BUFFER,
-                .mode = TaskBufferMode::HostDynamic,
+                .mode = TaskBufferMode::Host,
                 .name = "RT Vertices",
             });
 
@@ -67,7 +67,7 @@ namespace VisualTests {
             {
                 .size = sizeof(u32) * 6,
                 .usage = BufferUsageFlagBits::BLAS_GEOMETRY_BUFFER,
-                .mode = TaskBufferMode::HostDynamic,
+                .mode = TaskBufferMode::Host,
                 .name = "RT Indices",
             });
 
@@ -76,8 +76,8 @@ namespace VisualTests {
 
         // Prepare RHI Blas geometry info
         BlasTriangleGeometryInfo triGeo{};
-        triGeo.flags = AccelerationStructureGeometryFlagBits::OPAQUE | 
-            AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
+        triGeo.flags = AccelerationStructureGeometryFlagBits::OPAQUE |
+                       AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
         triGeo.vertexFormat = Format::RGB32Sfloat;
         triGeo.indexType = IndexType::Uint32;
         triGeo.vertexBuffer = vertexBuffer->Internal();
@@ -85,7 +85,7 @@ namespace VisualTests {
         triGeo.vertexStride = sizeof(SimpleVertex);
         triGeo.vertexCount = 4;
         triGeo.indexCount = 6;
-      
+
         eastl::array<BlasTriangleGeometryInfo, 1> geoArray = { triGeo };
         BlasBuildInfo blasBuildInfo = { .geometries = geoArray };
         blasBuildInfo.flags = AccelerationStructureCreateFlagBits::PREFER_FAST_TRACE;
@@ -106,14 +106,14 @@ namespace VisualTests {
             {
                 .size = sizeof(BlasInstanceData),
                 .usage = BufferUsageFlagBits::BLAS_INSTANCE_BUFFER,
-                .mode = TaskBufferMode::HostDynamic,
+                .mode = TaskBufferMode::Host,
                 .name = "RT Instance Buffer",
             });
 
         // TLAS size requirements
         TlasInstanceInfo tlasInstanceInfo = { .data = instanceBuffer->Internal(), .count = 1 };
         tlasInstanceInfo.flags = AccelerationStructureGeometryFlagBits::OPAQUE |
-            AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
+                                 AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
         TlasBuildInfo tlasBuildInfo = { .instances = tlasInstanceInfo };
         tlasBuildInfo.flags = AccelerationStructureCreateFlagBits::PREFER_FAST_TRACE;
         AccelerationStructureBuildSizesInfo tlasSizeInfo = device->TlasSizeRequirements(tlasBuildInfo);
@@ -145,25 +145,41 @@ namespace VisualTests {
         instanceData.instanceCustomIndex = 0;
         instanceData.mask = 0xFF;
         instanceData.instanceShaderBindingTableRecordOffset = 0;
-        instanceData.flags = AccelerationStructureGeometryInstanceFlagBits::TRIANGLE_FACING_CULL_DISABLE | 
-            AccelerationStructureGeometryInstanceFlagBits::FORCE_OPAQUE;
+        instanceData.flags = AccelerationStructureGeometryInstanceFlagBits::TRIANGLE_FACING_CULL_DISABLE |
+                             AccelerationStructureGeometryInstanceFlagBits::FORCE_OPAQUE;
         instanceData.blasAddress = blas->InstanceAddress();
 
         blasBuildInfo.geometries = geoArray;
         blasBuildInfo.dstBlas = blas->Internal();
         blasBuildInfo.scratchBuffer = blasScratchBuffer->Internal();
-        
+
         tlasBuildInfo.instances = tlasInstanceInfo;
         tlasBuildInfo.dstTlas = tlas->Internal();
         tlasBuildInfo.scratchBuffer = tlasScratchBuffer->Internal();
 
-        BuildAccelerationStructuresInfo buildAllInfo = {
-            .tlasBuildInfos = eastl::span<const TlasBuildInfo>(&tlasBuildInfo, 1),
-            .blasBuildInfos = eastl::span<const BlasBuildInfo>(&blasBuildInfo, 1),
-        };
+
 
         ICommandBuffer* singleTimeCommands = device->GetPresentQueue()->GetCommandBuffer({ .name = "Single time build commands" });
-        singleTimeCommands->BuildAccelerationStructures(buildAllInfo);
+        // build blas first
+        {
+            BuildAccelerationStructuresInfo buildInfo = {
+                .blasBuildInfos = eastl::span<const BlasBuildInfo>(&blasBuildInfo, 1),
+            };
+            singleTimeCommands->BuildAccelerationStructures(buildInfo);
+        }
+        // wait for blas to finish
+        singleTimeCommands->AccelerationStructureBarrier({
+            .accelerationStructure = blasBuildInfo.dstBlas,
+            .srcAccess = AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
+            .dstAccess = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ,
+        });
+        // then build tlas
+        {
+            BuildAccelerationStructuresInfo buildInfo = {
+                .tlasBuildInfos = eastl::span<const TlasBuildInfo>(&tlasBuildInfo, 1),
+            };
+            singleTimeCommands->BuildAccelerationStructures(buildInfo);
+        }
         singleTimeCommands->Complete();
         device->GetPresentQueue()->SubmitCommandBuffer(singleTimeCommands);
         device->SubmitQueue({ .queue = device->GetPresentQueue() });
@@ -211,4 +227,6 @@ namespace VisualTests {
         return tasks;
     }
 
+    bool RayQueryPixel::TaskSupported(IDevice* device) { return device->Features().bAccelerationStructureBuild &&
+                                                                device->Features().bRayQueries; }
 } // namespace VisualTests

@@ -4,4 +4,3 @@
 [submodule "vendor/PyroRHI"]
 	path = vendor/PyroRHI
 	url = https://github.com/PyroshockStudios/PyroRHI.git
-	branch = ray_tracing_fixes

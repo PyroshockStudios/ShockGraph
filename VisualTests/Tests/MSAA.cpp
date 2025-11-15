@@ -142,4 +142,5 @@ namespace VisualTests {
         };
         return tasks;
     }
+    bool MSAA::TaskSupported(IDevice* device) { return device->Properties().msaaSupportColorTarget > RasterizationSamples::e1; }
 } // namespace VisualTests

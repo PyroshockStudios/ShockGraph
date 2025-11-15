@@ -186,9 +186,10 @@ namespace PyroshockStudios {
 
         enum struct TaskBufferMode : u32 {
             Default = 0,     ///< Stored on Device, not accessible from CPU.
-            Dynamic = 1,     ///< Stored on Device, with CPU write access, but GPU read-only. Optimised for fast GPU access, but writes may be slower.
-            HostDynamic = 2, ///< Stored on Host memory, with CPU read/write access, but GPU read-only. Optimised for fast CPU access, but reads may be slower.
-            Readback = 3,    ///< Stored on Host memory, with CPU read access, but GPU write-only.
+            Host = 1,        ///< Stored on Host, with CPU read/write access, but GPU read-only. Not to be confused with HostDynamic, as this does not allow for safe per-frame write access.
+            Dynamic = 2,     ///< Stored on Device, with CPU write access, but GPU read-only. Optimised for fast GPU access, but writes may be slower.
+            HostDynamic = 3, ///< Stored on Host memory, with CPU read/write access, but GPU read-only. Optimised for fast CPU access, but reads may be slower.
+            Readback = 4,    ///< Stored on Host memory, with CPU read access, but GPU write-only.
         };
 
         struct TaskBufferInfo {

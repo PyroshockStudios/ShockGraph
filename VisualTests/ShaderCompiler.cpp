@@ -255,7 +255,7 @@ namespace VisualTests {
 
             std::string relativePathInInclude = std::filesystem::relative(file.path(), absoluteIncludeDir).string();
             if (stream.eof()) {
-                Logger::Warn(gShaderSink, "Failed to load code from '" + eastl::string(relativePathInInclude.c_str()) + "'. Ignoring file...");
+                Logger::Warn(gShaderSink, "Failed to load code from '{}'. Ignoring file...", relativePathInInclude);
             }
 
             slangRequest->addTranslationUnitSourceString(virtualFileIndex, relativePathInInclude.c_str(), stream.str().c_str());
@@ -268,9 +268,9 @@ namespace VisualTests {
         const char* diagnostics = slangRequest->getDiagnosticOutput();
         if (diagnostics && strlen(diagnostics) > 0) {
             if (SLANG_FAILED(result)) {
-                Logger::Error(gShaderSink, "Slang failed to compile a shader! Diagnostics: " + eastl::string(diagnostics));
+                Logger::Error(gShaderSink, "Slang failed to compile a shader! Diagnostics: {}", diagnostics);
             } else {
-                Logger::Warn(gShaderSink, "Slang compiled shader successfully, but generated diagnostics: " + eastl::string(diagnostics));
+                Logger::Warn(gShaderSink, "Slang compiled shader successfully, but generated diagnostics: {}", diagnostics);
             }
         }
         ASSERT(result == 0);

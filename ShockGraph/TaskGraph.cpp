@@ -24,8 +24,11 @@
 #include <PyroCommon/Logger.hpp>
 #include <PyroRHI/Api/ICommandQueue.hpp>
 #include <PyroRHI/Api/IDevice.hpp>
+#include <PyroRHI/Api/ToString.hpp>
+#include <PyroRHI/Context.hpp>
 
 #include <EASTL/algorithm.h>
+#include <EASTL/hash_set.h>
 #include <EASTL/numeric.h>
 #include <EASTL/sort.h>
 #include <libassert/assert.hpp>
@@ -362,22 +365,14 @@ namespace PyroshockStudios {
                     commandBuffer->BlitImageToImage({
                         .srcImage = writeInfo.image->Internal(),
                         .dstImage = swapImage,
-                        .srcImageBox = { 
-                            .x = writeInfo.srcRect.x, 
-                            .y = writeInfo.srcRect.y, 
-                            .z = 0, 
-                            .width = writeInfo.srcRect.width, 
-                            .height = writeInfo.srcRect.height, 
-                            .depth = 1 
-                        },
-                        .dstImageBox = { 
-                            .x = writeInfo.dstRect.x, 
-                            .y = writeInfo.dstRect.y, 
-                            .z = 0, 
-                            .width = writeInfo.dstRect.width, 
-                            .height = writeInfo.dstRect.height, 
-                            .depth = 1 
-                        },
+                        .srcImageBox = {
+                            .x = writeInfo.srcRect.x,
+                            .y = writeInfo.srcRect.y,
+                            .z = 0,
+                            .width = writeInfo.srcRect.width,
+                            .height = writeInfo.srcRect.height,
+                            .depth = 1 },
+                        .dstImageBox = { .x = writeInfo.dstRect.x, .y = writeInfo.dstRect.y, .z = 0, .width = writeInfo.dstRect.width, .height = writeInfo.dstRect.height, .depth = 1 },
                     });
                     commandBuffer->ImageBarrier({
                         .image = swapImage,
@@ -410,6 +405,8 @@ namespace PyroshockStudios {
             mTasks.clear();
             mBatches.clear();
             mAllTaskRefs.clear();
+            mLastKnownBufferLayouts.clear();
+            mLastKnownImageLayouts.clear();
             bBaked = false;
         }
         SHOCKGRAPH_API void TaskGraph::Build() {
@@ -443,6 +440,24 @@ namespace PyroshockStudios {
                 }
                 for (const auto& imageDep : task->GetTask()->mSetupData.imageDepends) {
                     u32 dependencyIndex = imageDep.image->GetId();
+                    ResourceState& depedencyState = currentResources[dependencyIndex];
+                    if (depedencyState.lastTaskId.has_value()) {
+                        currentTasks[taskIndex].parents.push_back(depedencyState.lastTaskId.value());
+                    }
+                    depedencyState.lastTaskId = eastl::make_optional(taskIndex);
+                }
+                for (const auto& asDep : task->GetTask()->mSetupData.accelerationStructureDepends) {
+                    u32 dependencyIndex = {};
+                    if (eastl::holds_alternative<TaskBlas>(asDep.accelerationStructure)) {
+                        TaskBlas blas = eastl::get<TaskBlas>(asDep.accelerationStructure);
+                        dependencyIndex = blas->GetId();
+                    } else if (eastl::holds_alternative<TaskTlas>(asDep.accelerationStructure)) {
+                        TaskTlas tlas = eastl::get<TaskTlas>(asDep.accelerationStructure);
+                        dependencyIndex = tlas->GetId();
+                    } else {
+                        ASSERT(false, "Bad Acceleration Structure Variant!");
+                    }
+
                     ResourceState& depedencyState = currentResources[dependencyIndex];
                     if (depedencyState.lastTaskId.has_value()) {
                         currentTasks[taskIndex].parents.push_back(depedencyState.lastTaskId.value());
@@ -504,7 +519,7 @@ namespace PyroshockStudios {
                             barrier.srcAccess = dependencyState.currentAccess;
                             barrier.dstLayout = AccessToBufferLayout(bufferDep.access);
                             barrier.dstAccess = bufferDep.access;
-                            batch.bufferBarriers.push_back(barrier);
+                            batch.barriers.buffer.push_back(barrier);
                             dependencyState.currentAccess = bufferDep.access;
                         }
                     }
@@ -518,8 +533,32 @@ namespace PyroshockStudios {
                             barrier.srcAccess = dependencyState.currentAccess;
                             barrier.dstLayout = AccessToImageLayout(imageDep.access);
                             barrier.dstAccess = imageDep.access;
-                            batch.imageBarriers.push_back(barrier);
+                            batch.barriers.image.push_back(barrier);
                             dependencyState.currentAccess = imageDep.access;
+                        }
+                    }
+                    for (const auto& asDepend : task->GetTask()->mSetupData.accelerationStructureDepends) {
+                        eastl::variant<BlasId, TlasId> asVariant = {};
+                        u32 dependencyIndex = {};
+                        if (eastl::holds_alternative<TaskBlas>(asDepend.accelerationStructure)) {
+                            TaskBlas blas = eastl::get<TaskBlas>(asDepend.accelerationStructure);
+                            asVariant = blas->Internal();
+                            dependencyIndex = blas->GetId();
+                        } else if (eastl::holds_alternative<TaskTlas>(asDepend.accelerationStructure)) {
+                            TaskTlas tlas = eastl::get<TaskTlas>(asDepend.accelerationStructure);
+                            asVariant = tlas->Internal();
+                            dependencyIndex = tlas->GetId();
+                        } else {
+                            ASSERT(false, "Bad Acceleration Structure Variant!");
+                        }
+                        ResourceState& dependencyState = currentResources[dependencyIndex];
+                        if (dependencyState.currentAccess != asDepend.access) {
+                            AccelerationStructureBarrierInfo barrier{};
+                            barrier.accelerationStructure = asVariant;
+                            barrier.srcAccess = dependencyState.currentAccess;
+                            barrier.dstAccess = asDepend.access;
+                            batch.barriers.accelerationStructure.push_back(barrier);
+                            dependencyState.currentAccess = asDepend.access;
                         }
                     }
                 }
@@ -565,6 +604,7 @@ namespace PyroshockStudios {
                     previousTaskType = mTasks[batch.taskIds.back()]->GetTask()->GetType();
                 }
             }
+
             Logger::Trace(mLogStream, "Injecting timestamp profilers");
             for (i32 i = 0; i < mFramesInFlight; ++i) {
                 mTimestampQueryPools.push_back(mDevice->CreateTimestampQueryPool({
@@ -652,20 +692,47 @@ namespace PyroshockStudios {
                 for (Batch& batch : mBatches) {
                     commandBuffer->BeginLabel({ .labelColor = LabelColor::BLACK,
                         .name = "Sync Barriers Batch #" + eastl::to_string(batchIndex) });
-                    for (const auto& barrier : batch.imageBarriers) {
+
+                    for (auto barrier : batch.barriers.buffer) {
+                        auto lastKnownLayout = mLastKnownBufferLayouts.find(barrier.buffer);
+                        if (lastKnownLayout != mLastKnownBufferLayouts.end()) {
+                            barrier.srcLayout = lastKnownLayout->second;
+                            lastKnownLayout->second = barrier.dstLayout;
+                        } else {
+                            mLastKnownBufferLayouts[barrier.buffer] = barrier.dstLayout;
+                        }
+                        commandBuffer->BufferBarrier(barrier);
+                    }
+                    for (auto barrier : batch.barriers.image) {
+                        auto lastKnownLayout = mLastKnownImageLayouts.find(barrier.image);
+                        if (lastKnownLayout != mLastKnownImageLayouts.end()) {
+                            barrier.srcLayout = lastKnownLayout->second;
+                            lastKnownLayout->second = barrier.dstLayout;
+                        } else {
+                            mLastKnownImageLayouts[barrier.image] = barrier.dstLayout;
+                        }
                         commandBuffer->ImageBarrier(barrier);
                     }
-                    for (const auto& barrier : batch.bufferBarriers) {
-                        commandBuffer->BufferBarrier(barrier);
+
+                    for (const auto& barrier : batch.barriers.accelerationStructure) {
+                        commandBuffer->AccelerationStructureBarrier(barrier);
                     }
                     commandBuffer->EndLabel();
                     for (TaskId taskIndex : batch.taskIds) {
                         TaskExecute* task = mTasks[taskIndex];
                         task->mTimestampPool = mTimestampQueryPools[mFrameIndex];
                         wrapper.mCurrBindPoint = task->GetTask()->GetBindPoint();
+
+                        AccelerationStructureBarrierInfo barrier{};
+                        barrier.srcAccess = AccessConsts::READ_WRITE;
+                        barrier.dstAccess = AccessConsts::READ_WRITE;
+                        commandBuffer->AccelerationStructureBarrier(barrier);
+
                         task->PreExec(commandBuffer);
                         task->GetTask()->ExecuteTask(wrapper);
                         task->PostExec(commandBuffer);
+
+                        commandBuffer->AccelerationStructureBarrier(barrier);
                     }
                     ++batchIndex;
                 }
@@ -740,6 +807,7 @@ namespace PyroshockStudios {
                             .srcLayout = BufferLayout::TransferDst,
                             .dstLayout = stagingUpload.dstBufferLayout,
                         });
+                        mLastKnownBufferLayouts[stagingUpload.dstBuffer] = stagingUpload.dstBufferLayout;
                     }
                     if (stagingUpload.dstImage) {
                         commandBuffer->ImageBarrier({
@@ -762,6 +830,7 @@ namespace PyroshockStudios {
                             .srcLayout = ImageLayout::TransferDst,
                             .dstLayout = stagingUpload.dstImageLayout,
                         });
+                        mLastKnownImageLayouts[stagingUpload.dstImage] = stagingUpload.dstImageLayout;
                     }
                 }
                 mDevice->Destroy(uploadPair.srcBuffer, true);
@@ -775,9 +844,11 @@ namespace PyroshockStudios {
                 .name = "Flush dynamic buffers" });
             for (const auto& bufferCopy : mResourceManager->mDynamicBuffers) {
                 bufferCopy->mCurrentBufferInFlight = mFrameIndex;
-                if (bufferCopy->Info().bCpuVisible) {
+                if (bufferCopy->Info().mode == TaskBufferMode::HostDynamic || bufferCopy->Info().mode == TaskBufferMode::Readback) {
+                    // This is purely stored on host, no copies needed
                     bufferCopy->mBuffer = bufferCopy->InternalInFlightBuffer(mFrameIndex);
-                } else {
+                } else if (bufferCopy->Info().mode == TaskBufferMode::Dynamic) {
+                    // Copy from host to device.
                     commandBuffer->BufferBarrier({
                         .buffer = bufferCopy->InternalInFlightBuffer(mFrameIndex),
                         .srcAccess = AccessConsts::HOST_WRITE,
@@ -789,7 +860,7 @@ namespace PyroshockStudios {
                         .buffer = bufferCopy->Internal(),
                         .srcAccess = AccessConsts::NONE,
                         .dstAccess = AccessConsts::TRANSFER_WRITE,
-                        .srcLayout = BufferLayout::Undefined,
+                        .srcLayout = BufferLayout::TransferDst,
                         .dstLayout = BufferLayout::TransferDst,
                     });
                     commandBuffer->CopyBufferToBuffer({
@@ -807,6 +878,7 @@ namespace PyroshockStudios {
                         .srcLayout = BufferLayout::TransferDst,
                         .dstLayout = BufferLayout::ReadOnly,
                     });
+                    mLastKnownBufferLayouts[bufferCopy->Internal()] = BufferLayout::ReadOnly;
                 }
             }
             commandBuffer->EndLabel();
@@ -815,52 +887,6 @@ namespace PyroshockStudios {
         SHOCKGRAPH_API eastl::string TaskGraph::ToString() {
             eastl::string out;
             out += "TaskGraph Batches:\n";
-
-            static const auto ImageLayoutToString = [](ImageLayout layout) -> eastl::string {
-                switch (layout) {
-                case ImageLayout::Identity:
-                    return "Identity";
-                case ImageLayout::Undefined:
-                    return "Undefined";
-                case ImageLayout::UnorderedAccess:
-                    return "UnorderedAccess";
-                case ImageLayout::ReadOnly:
-                    return "ReadOnly";
-                case ImageLayout::RenderTarget:
-                    return "RenderTarget";
-                case ImageLayout::TransferSrc:
-                    return "TransferSrc";
-                case ImageLayout::TransferDst:
-                    return "TransferDst";
-                case ImageLayout::BlitSrc:
-                    return "BlitSrc";
-                case ImageLayout::BlitDst:
-                    return "BlitDst";
-                case ImageLayout::PresentSrc:
-                    return "PresentSrc";
-                default:
-                    return "Unknown";
-                }
-            };
-
-            static const auto BufferLayoutToString = [](BufferLayout layout) -> eastl::string {
-                switch (layout) {
-                case BufferLayout::Identity:
-                    return "Identity";
-                case BufferLayout::Undefined:
-                    return "Undefined";
-                case BufferLayout::UnorderedAccess:
-                    return "UnorderedAccess";
-                case BufferLayout::ReadOnly:
-                    return "ReadOnly";
-                case BufferLayout::TransferSrc:
-                    return "TransferSrc";
-                case BufferLayout::TransferDst:
-                    return "TransferDst";
-                default:
-                    return "Unknown";
-                }
-            };
 
             static const auto ToHex = [](u64 value) -> eastl::string {
                 char buf[32];
@@ -875,24 +901,41 @@ namespace PyroshockStudios {
 
                 // Buffer Barriers
                 out += "    Buffer Barriers:\n";
-                for (const auto& bb : batch.bufferBarriers) {
+                for (const auto& bb : batch.barriers.buffer) {
                     auto name = mDevice->GetBufferInfo(bb.buffer).name;
                     out += "      Buffer: " + ToHex(eastl::bit_cast<u64>(bb.buffer)) + (name.empty() ? "" : (" {" + name + "}")) +
                            ", Region: [off=" + eastl::to_string(bb.region.offset) + ", sz=" +
                            ((bb.region.size == PYRO_MAX_SIZE) ? "WHOLE RANGE" : eastl::to_string(bb.region.size)) + "]" +
-                           ", Layout: " + BufferLayoutToString(bb.srcLayout) + " -> " +
-                           BufferLayoutToString(bb.dstLayout) + "\n";
+                           ", Layout: " + EnumToString(bb.srcLayout) + " -> " +
+                           EnumToString(bb.dstLayout) + "\n";
                 }
 
                 // Image Barriers
                 out += "    Image Barriers:\n";
-                for (const auto& ib : batch.imageBarriers) {
+                for (const auto& ib : batch.barriers.image) {
                     auto name = mDevice->GetImageInfo(ib.image).name;
                     out += "      Image: " + ToHex(eastl::bit_cast<u64>(ib.image)) + (name.empty() ? "" : (" {" + name + "}")) +
-                           ", Slice: [mip=(" + eastl::to_string(ib.imageSlice.baseMipLevel) + ";" + eastl::to_string(ib.imageSlice.baseMipLevel + ib.imageSlice.levelCount - 1) + "), " +
-                           "arr=(" + eastl::to_string(ib.imageSlice.baseArrayLayer) + ";" + eastl::to_string(ib.imageSlice.baseArrayLayer + ib.imageSlice.layerCount - 1) + ")]" +
-                           ", Layout: " + ImageLayoutToString(ib.srcLayout) + " -> " +
-                           ImageLayoutToString(ib.dstLayout) + "\n";
+                           ", Slice: [mip=(" + eastl::to_string(ib.imageSlice.baseMipLevel) + ";" + ((ib.imageSlice.levelCount == PYRO_REMAINING_MIP_LEVELS) ? "REMAINING MIPS" : (eastl::to_string(ib.imageSlice.baseMipLevel + ib.imageSlice.levelCount - 1))) + "), " +
+                           "arr=(" + eastl::to_string(ib.imageSlice.baseArrayLayer) + ";" + ((ib.imageSlice.layerCount == PYRO_REMAINING_ARRAY_LAYERS) ? "REMAINING LAYERS" : (eastl::to_string(ib.imageSlice.baseArrayLayer + ib.imageSlice.layerCount - 1))) + ")]" +
+                           ", Layout: " + EnumToString(ib.srcLayout) + " -> " +
+                           EnumToString(ib.dstLayout) + "\n";
+                }
+
+                // Image Barriers
+                out += "    Acceleration Structure Barriers:\n";
+                for (const auto& asb : batch.barriers.accelerationStructure) {
+                    out += "      ";
+                    if (eastl::holds_alternative<BlasId>(asb.accelerationStructure)) {
+                        BlasId blas = eastl::get<BlasId>(asb.accelerationStructure);
+                        auto name = mDevice->GetBlasInfo(blas).name;
+                        out += "BLAS: " + ToHex(eastl::bit_cast<u64>(blas)) + (name.empty() ? "" : (" {" + name + "}")) + "\n";
+                    } else if (eastl::holds_alternative<TlasId>(asb.accelerationStructure)) {
+                        TlasId tlas = eastl::get<TlasId>(asb.accelerationStructure);
+                        auto name = mDevice->GetTlasInfo(tlas).name;
+                        out += "TLAS: " + ToHex(eastl::bit_cast<u64>(tlas)) + (name.empty() ? "" : (" {" + name + "}")) + "\n";
+                    } else {
+                        out += "!BAD VARIANT!\n";
+                    }
                 }
 
                 // Task IDs

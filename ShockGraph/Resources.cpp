@@ -118,7 +118,7 @@ namespace PyroshockStudios {
             mShader.program->RemoveReference(this);
             Device()->Destroy(mPipeline);
         }
-         void TaskComputePipeline_::Recreate() {
+        void TaskComputePipeline_::Recreate() {
             ShaderInfo copyShader;
             copyShader.program = mShader.program->Program().bytecode;
             copyShader.specializationConstants = mShader.specializationConstants;
@@ -130,7 +130,11 @@ namespace PyroshockStudios {
         }
         SHOCKGRAPH_API TaskBuffer_::~TaskBuffer_() {
             Owner()->ReleaseBufferResource(this);
-            Device()->Destroy(mBuffer);
+            if (this->mInfo.mode == TaskBufferMode::HostDynamic || this->mInfo.mode == TaskBufferMode::Readback) {
+                // Do not destroy mBuffer as it is the same stuff as in mInFlightBuffers!
+            } else {
+                Device()->Destroy(mBuffer);
+            }
             for (auto& buffer : mInFlightBuffers) {
                 Device()->Destroy(buffer);
             }
@@ -169,6 +173,9 @@ namespace PyroshockStudios {
         }
         SHOCKGRAPH_API TaskBlas_::~TaskBlas_() {
             Device()->Destroy(mBlas);
+        }
+        PYRO_NODISCARD BlasAddress TaskBlas_::InstanceAddress() {
+            return Device()->BlasInstanceAddress(mBlas);
         }
         SHOCKGRAPH_API TaskTlas_::TaskTlas_(TaskResourceManager* owner, const TaskTlasInfo& info, TlasId&& tlas)
             : TaskResource_(owner), mTlas(tlas), mInfo(info) {

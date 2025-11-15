@@ -29,7 +29,13 @@ namespace VisualTests {
     static const eastl::array<f32, 2> gOffset1 = { 0.5, 0.0f };
 
     void AlphaToCoverage::CreateResources(const CreateResourceInfo& info) {
-        RasterizationSamples sampleCount = info.resourceManager.GetInternalDevice()->Properties().msaaSupportColorTarget;
+        RasterizationSamples availableSampleCounts = info.resourceManager.GetInternalDevice()->Properties().msaaSupportColorTarget;
+        RasterizationSamples sampleCount = RasterizationSamples::e1;
+        while (availableSampleCounts != RasterizationSamples::e1) {
+            reinterpret_cast<u32&>(availableSampleCounts) >>= 1;
+            reinterpret_cast<u32&>(sampleCount) <<= 1;
+        }
+
         image = info.resourceManager.CreatePersistentImage({
             .format = Format::RGBA8Unorm,
             .size = { info.displayInfo.width, info.displayInfo.height },

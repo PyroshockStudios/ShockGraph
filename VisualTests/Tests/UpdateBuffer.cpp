@@ -34,8 +34,7 @@ namespace VisualTests {
         ubo = info.resourceManager.CreatePersistentBuffer({
             .size = sizeof(f32),
             .usage = BufferUsageFlagBits::UNIFORM_BUFFER | BufferUsageFlagBits::TRANSFER_DST /*Transfer DST is required*/,
-            .bCpuVisible = false, // Not cpu visible! Should not be  needed for UpdateBuffer()!
-            .bDynamic = false,    // Not dynamic! Should not be needed either!
+            .mode = TaskBufferMode::Default, // Not cpu visible nor dynamic! Should not be  needed for UpdateBuffer()!
             .name = "Vertex Scale Uniform Buffer",
         });
         target = info.resourceManager.CreateColorTarget({

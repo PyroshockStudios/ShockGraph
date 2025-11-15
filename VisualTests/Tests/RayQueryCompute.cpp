@@ -20,13 +20,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "RayTracingCompute.hpp"
+#include "RayQueryCompute.hpp"
 
 namespace VisualTests {
-
-    void RayTracingCompute::CreateResources(const CreateResourceInfo& info) {
+    // --- Build geometry buffers for BLAS/TLAS
+    struct SimpleVertex {
+        f32 x, y, z;
+    };
+    void RayQueryCompute::CreateResources(const CreateResourceInfo& info) {
         image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
+            .format = Format::RGBA32Sfloat,
             .size = { info.displayInfo.width, info.displayInfo.height },
             .usage = ImageUsageFlagBits::UNORDERED_ACCESS | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
             .name = "Ray-Query Compute Image",
@@ -34,37 +37,45 @@ namespace VisualTests {
 
         imageUav = info.resourceManager.CreateUnorderedAccessView({ .image = image });
 
-        csh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/RayQuery.slang",
+        csh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/RayQueryCompute.slang",
             { .stage = ShaderStage::Compute, .entryPoint = "computeMain", .name = "RayQuery Compute" });
 
         computePipeline = info.resourceManager.CreateComputePipeline({ .name = "RayQuery Compute Pipeline" }, { .program = csh });
 
-        // --- Build geometry buffers for BLAS/TLAS
-        struct SimpleVertex { f32 x, y, z; };
 
-        const SimpleVertex vertices[] = { { 3.f, 3.f, 4.f }, { -3.f, 3.f, 4.f }, { 0.f, -3.f, 4.f }, { 0.f, 0.f, 4.f } };
-        const u32 indices[] = { 0, 1, 2, 1, 2, 3 };
+        const SimpleVertex vertices[] = {
+            { -1.f, -1.f, 4.f },
+            { 1.f, -1.f, 4.f },
+            { 1.f, 1.f, 4.f },
+            { -1.f, 1.f, 4.f }
+        };
+        const u32 indices[] = { 0, 1, 2, 0, 2, 3 };
 
         // Create vertex/index buffers with initial data
-        vertexBuffer = info.resourceManager.CreatePersistentBuffer({
-            .size = sizeof(vertices),
-            .usage = BufferUsageFlagBits::BLAS_GEOMETRY_BUFFER,
-            .bCpuVisible = true,
-            .name = "RT Vertices",
-        }, eastl::span<const u8>(reinterpret_cast<const u8*>(vertices), sizeof(vertices)));
+        vertexBuffer = info.resourceManager.CreatePersistentBuffer(
+            {
+                .size = sizeof(vertices),
+                .usage = BufferUsageFlagBits::BLAS_GEOMETRY_BUFFER,
+                .mode = TaskBufferMode::Default,
+                .name = "RT Vertices",
+            },
+            eastl::span<const u8>(reinterpret_cast<const u8*>(vertices), sizeof(vertices)));
 
-        indexBuffer = info.resourceManager.CreatePersistentBuffer({
-            .size = sizeof(indices),
-            .usage = BufferUsageFlagBits::BLAS_GEOMETRY_BUFFER,
-            .bCpuVisible = true,
-            .name = "RT Indices",
-        }, eastl::span<const u8>(reinterpret_cast<const u8*>(indices), sizeof(indices)));
+        indexBuffer = info.resourceManager.CreatePersistentBuffer(
+            {
+                .size = sizeof(indices),
+                .usage = BufferUsageFlagBits::BLAS_GEOMETRY_BUFFER,
+                .mode = TaskBufferMode::Default,
+                .name = "RT Indices",
+            },
+            eastl::span<const u8>(reinterpret_cast<const u8*>(indices), sizeof(indices)));
 
         // Get the internal device to query size requirements
         IDevice* device = info.resourceManager.GetInternalDevice();
 
         // Prepare RHI Blas geometry info
         BlasTriangleGeometryInfo triGeo{};
+        triGeo.flags = AccelerationStructureGeometryFlagBits::OPAQUE | AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
         triGeo.vertexFormat = Format::RGB32Sfloat;
         triGeo.indexType = IndexType::Uint32;
         triGeo.vertexBuffer = vertexBuffer->Internal();
@@ -94,15 +105,18 @@ namespace VisualTests {
         instanceData.instanceCustomIndex = 0;
         instanceData.mask = 0xFF;
         instanceData.instanceShaderBindingTableRecordOffset = 0;
-        instanceData.flags = 0;
+        instanceData.flags = AccelerationStructureGeometryInstanceFlagBits::FORCE_OPAQUE |
+                             AccelerationStructureGeometryInstanceFlagBits::TRIANGLE_FACING_CULL_DISABLE;
         instanceData.blasAddress = device->BlasInstanceAddress(blas->Internal());
 
-        instanceBuffer = info.resourceManager.CreatePersistentBuffer({
-            .size = sizeof(BlasInstanceData),
-            .usage = BufferUsageFlagBits::BLAS_INSTANCE_BUFFER,
-            .bCpuVisible = true,
-            .name = "RT Instance Buffer",
-        }, eastl::span<const u8>(reinterpret_cast<const u8*>(&instanceData), sizeof(instanceData)));
+        instanceBuffer = info.resourceManager.CreatePersistentBuffer(
+            {
+                .size = sizeof(BlasInstanceData),
+                .usage = BufferUsageFlagBits::BLAS_INSTANCE_BUFFER,
+                .mode = TaskBufferMode::Default,
+                .name = "RT Instance Buffer",
+            },
+            eastl::span<const u8>(reinterpret_cast<const u8*>(&instanceData), sizeof(instanceData)));
 
         // TLAS size requirements
         TlasInstanceInfo tlasInstanceInfo = { .data = instanceBuffer->Internal(), .count = 1 };
@@ -119,45 +133,61 @@ namespace VisualTests {
     }
 
 
-    void RayTracingCompute::ReleaseResources(const ReleaseResourceInfo& info) {
+    void RayQueryCompute::ReleaseResources(const ReleaseResourceInfo& info) {
         info.resourceManager.ReleaseUnorderedAccessView(imageUav);
+        computePipeline = {};
         image = {};
         csh = {};
-        computePipeline = {};
+        vertexBuffer = {};
+        indexBuffer = {};
+        instanceBuffer = {};
+        blasScratchBuffer = {};
+        tlasScratchBuffer = {};
+        blas = {};
+        tlas = {};
+        bBuilt = false;
     }
 
-    eastl::span<GenericTask*> RayTracingCompute::CreateTasks() {
-        // Task 0: Build BLAS/TLAS
+    eastl::span<GenericTask*> RayQueryCompute::CreateTasks() {
+        // Task 1: Build BLAS/TLAS
         GenericTask* buildTask = new CustomCallbackTask(
             { .name = "Build Acceleration Structures", .color = LabelColor::YELLOW },
             [this](CustomTask& task) {
                 // declare buffer usage so task graph orders correctly
-                task.UseBuffer({ .buffer = vertexBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
-                task.UseBuffer({ .buffer = indexBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
-                task.UseBuffer({ .buffer = instanceBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
+                task.UseBuffer({ .buffer = vertexBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ });
+                task.UseBuffer({ .buffer = indexBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ });
+                task.UseBuffer({ .buffer = instanceBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ });
                 task.UseBuffer({ .buffer = blasScratchBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
                 task.UseBuffer({ .buffer = tlasScratchBuffer, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
-                task.UseTlas({ .tlas = tlas, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
-                task.UseImage({ .image = image, .access = AccessConsts::BLIT_WRITE }); // this is retarded fix
+                task.UseAccelerationStructure({ .accelerationStructure = blas, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
+                task.UseAccelerationStructure({ .accelerationStructure = tlas, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE });
             },
             [this](ICommandBuffer* commands) {
-                // Prepare RHI build infos
+                if (bBuilt)
+                    return;
+                bBuilt = true;
+                //  Prepare RHI build infos
                 BlasTriangleGeometryInfo triGeo{};
+                triGeo.flags = AccelerationStructureGeometryFlagBits::OPAQUE | AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
                 triGeo.vertexFormat = Format::RGB32Sfloat;
                 triGeo.indexType = IndexType::Uint32;
                 triGeo.vertexBuffer = vertexBuffer->Internal();
                 triGeo.indexBuffer = indexBuffer->Internal();
-                triGeo.vertexStride = sizeof(float) * 3;
-                triGeo.vertexCount = 3;
-                triGeo.indexCount = 3;
+                triGeo.vertexStride = sizeof(SimpleVertex);
+                triGeo.vertexCount = 4;
+                triGeo.indexCount = 6;
 
                 eastl::array<BlasTriangleGeometryInfo, 1> geoArray = { triGeo };
-                BlasBuildInfo blasBuildInfo = { .geometries = geoArray };
+                BlasBuildInfo blasBuildInfo{};
+                blasBuildInfo.geometries = geoArray;
                 blasBuildInfo.dstBlas = blas->Internal();
                 blasBuildInfo.scratchBuffer = blasScratchBuffer->Internal();
 
                 TlasInstanceInfo tlasInstanceInfo = { .data = instanceBuffer->Internal(), .count = 1 };
-                TlasBuildInfo tlasBuildInfo = { .instances = tlasInstanceInfo };
+                tlasInstanceInfo.flags = AccelerationStructureGeometryFlagBits::OPAQUE | AccelerationStructureGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION;
+                
+                TlasBuildInfo tlasBuildInfo{};
+                tlasBuildInfo.instances = tlasInstanceInfo;
                 tlasBuildInfo.dstTlas = tlas->Internal();
                 tlasBuildInfo.scratchBuffer = tlasScratchBuffer->Internal();
 
@@ -170,12 +200,13 @@ namespace VisualTests {
             },
             TaskType::Transfer);
 
-        // Task 1: Dispatch compute shader which performs ray queries
+        // Task 2: Dispatch compute shader which performs ray queries
         GenericTask* dispatchTask = new ComputeCallbackTask(
             { .name = "RayQuery Compute Dispatch", .color = LabelColor::YELLOW },
             [this](ComputeTask& task) {
                 task.UseImage({ .image = image, .access = AccessConsts::COMPUTE_SHADER_WRITE });
-                task.UseTlas({ .tlas = tlas, .access = AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ });
+                task.UseAccelerationStructure({ .accelerationStructure = blas, .access = AccessConsts::COMPUTE_SHADER_READ });
+                task.UseAccelerationStructure({ .accelerationStructure = tlas, .access = AccessConsts::COMPUTE_SHADER_READ });
             },
             [this](TaskCommandList& commands) {
                 commands.SetComputePipeline(computePipeline);
@@ -190,32 +221,7 @@ namespace VisualTests {
                 commands.Dispatch({ .x = gx, .y = gy });
             });
 
-        // Task 2: Blit compute image to a full-size blit image that will be presented
-        // GenericTask* blitTask = new CustomCallbackTask(
-        //     { .name = "Blit To Swapchain Image", .color = LabelColor::YELLOW },
-        //     [this](CustomTask& task) {
-        //         task.UseImage({ .image = image,
-        //             .access = AccessConsts::BLIT_READ });
-        //         task.UseImage({ .image = blitImage,
-        //             .access = AccessConsts::BLIT_WRITE });
-        //     },
-        //     [this](ICommandBuffer* commands) {
-        //         BlitImageToImageInfo blitInfo{};
-        //         blitInfo.srcImage = image->Internal();
-        //         blitInfo.dstImage = blitImage->Internal();
-
-        //         Extent3D srcDim = image->Info().size;
-        //         Extent3D dstDim = blitImage->Info().size;
-
-        //         blitInfo.srcImageBox = Box3D::Cut({ srcDim.width, srcDim.height, 1 });
-        //         blitInfo.dstImageBox = Box3D::Cut({ dstDim.width, dstDim.height, 1 });
-        //         blitInfo.filter = Filter::Nearest;
-
-        //         commands->BlitImageToImage(blitInfo);
-        //     },
-        //     TaskType::Graphics);
-
-    tasks = { buildTask, dispatchTask };
+        tasks = { buildTask, dispatchTask };
 
         return tasks;
     }

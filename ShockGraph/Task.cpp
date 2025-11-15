@@ -63,11 +63,8 @@ namespace PyroshockStudios {
         SHOCKGRAPH_API void GenericTask::UseImage(const TaskImageDependencyInfo& info) {
             mSetupData.imageDepends.emplace_back(info);
         }
-        SHOCKGRAPH_API void GenericTask::UseBlas(const TaskBlasDependencyInfo& info) {
-            mSetupData.blasDepends.emplace_back(info);
-        }
-        SHOCKGRAPH_API void GenericTask::UseTlas(const TaskTlasDependencyInfo& info) {
-            mSetupData.tlasDepends.emplace_back(info);
+        SHOCKGRAPH_API void GenericTask::UseAccelerationStructure(const TaskAccelerationStructureDependencyInfo& info) {
+            mSetupData.accelerationStructureDepends.emplace_back(info);
         }
         SHOCKGRAPH_API void CustomTask::ExecuteTask(TaskCommandList& commandList) {
             ExecuteTask(commandList.Internal());

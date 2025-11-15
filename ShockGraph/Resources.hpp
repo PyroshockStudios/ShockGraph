@@ -27,13 +27,13 @@
 #ifdef SHOCKGRAPH_USE_PYRO_PLATFORM
 #include <PyroPlatform/Forward.hpp>
 #endif
+#include <PyroRHI/Api/AccelerationStructure.hpp>
 #include <PyroRHI/Api/Forward.hpp>
 #include <PyroRHI/Api/GPUResource.hpp>
 #include <PyroRHI/Api/Pipeline.hpp>
 #include <PyroRHI/Api/RenderTarget.hpp>
 #include <PyroRHI/Api/Types.hpp>
 #include <PyroRHI/Shader/ShaderProgram.hpp>
-#include <PyroRHI/Api/AccelerationStructure.hpp>
 #include <ShockGraph/Core.hpp>
 
 namespace PyroshockStudios {
@@ -184,15 +184,17 @@ namespace PyroshockStudios {
 
         using TaskComputePipelineRef = TaskComputePipeline&;
 
+        enum struct TaskBufferMode : u32 {
+            Default = 0,     ///< Stored on Device, not accessible from CPU.
+            Dynamic = 1,     ///< Stored on Device, with CPU write access, but GPU read-only. Optimised for fast GPU access, but writes may be slower.
+            HostDynamic = 2, ///< Stored on Host memory, with CPU read/write access, but GPU read-only. Optimised for fast CPU access, but reads may be slower.
+            Readback = 3,    ///< Stored on Host memory, with CPU read access, but GPU write-only.
+        };
+
         struct TaskBufferInfo {
             usize size = 0;
             BufferUsageFlags usage = {};
-            // Buffer is stored on CPU visible memory
-            bool bCpuVisible = false;
-            // Buffer can be read from CPU
-            bool bReadback = false;
-            // Buffer is reliably accessible between CPU and GPU
-            bool bDynamic = false;
+            TaskBufferMode mode = TaskBufferMode::Default;
             eastl::string name = {};
         };
         struct TaskBuffer_ final : public TaskResource_ {
@@ -348,6 +350,7 @@ namespace PyroshockStudios {
                 return mBlas;
             }
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskBlasInfo& Info() const { return mInfo; }
+            PYRO_NODISCARD BlasAddress InstanceAddress();
 
         private:
             BlasId mBlas = PYRO_NULL_BLAS;

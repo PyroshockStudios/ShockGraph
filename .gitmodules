@@ -1,6 +1,7 @@
-[submodule "vendor/PyroRHI"]
-	path = vendor/PyroRHI
-	url = https://github.com/PyroshockStudios/PyroRHI.git
 [submodule "vendor/PyroPlatform"]
 	path = vendor/PyroPlatform
 	url = https://github.com/PyroshockStudios/PyroPlatform.git
+[submodule "vendor/PyroRHI"]
+	path = vendor/PyroRHI
+	url = https://github.com/PyroshockStudios/PyroRHI.git
+	branch = ray_tracing_fixes

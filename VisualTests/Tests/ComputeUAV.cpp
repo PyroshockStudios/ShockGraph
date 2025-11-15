@@ -52,12 +52,14 @@ namespace VisualTests {
             {
                 .size = VERTEX_COUNT * sizeof(Vertex),
                 .usage = BufferUsageFlagBits::VERTEX_BUFFER | BufferUsageFlagBits::UNORDERED_ACCESS,
+                .mode = TaskBufferMode::Default,
                 .name = "Compute-UAV VBO/UAV",
             });
         idxUav = info.resourceManager.CreatePersistentBuffer(
             {
                 .size = INDEX_COUNT * sizeof(u32),
                 .usage = BufferUsageFlagBits::INDEX_BUFFER | BufferUsageFlagBits::UNORDERED_ACCESS,
+                .mode = TaskBufferMode::Default,
                 .name = "Compute-UAV Index buffer/UAV",
             });
         vboUaView = info.resourceManager.CreateUnorderedAccessView({ .buffer = vboUav });

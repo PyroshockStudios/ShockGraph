@@ -57,6 +57,7 @@ namespace VisualTests {
             {
                 .size = gVertices.size() * sizeof(Vertex),
                 .usage = BufferUsageFlagBits::VERTEX_BUFFER,
+                .mode = TaskBufferMode::Default,
                 .name = "Index Buffer VBO",
             },
             { reinterpret_cast<const u8*>(gVertices.data()), reinterpret_cast<const u8*>(gVertices.data() + gVertices.size()) });
@@ -65,6 +66,7 @@ namespace VisualTests {
             {
                 .size = gIndices.size() * sizeof(u32),
                 .usage = BufferUsageFlagBits::INDEX_BUFFER,
+                .mode = TaskBufferMode::Default,
                 .name = "Index Buffer Index Buffer",
             },
             { reinterpret_cast<const u8*>(gIndices.data()), reinterpret_cast<const u8*>(gIndices.data() + gIndices.size()) });

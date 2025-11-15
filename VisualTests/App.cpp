@@ -35,6 +35,7 @@ namespace VisualTests {
     StdoutLogger* gPlatformSink = nullptr;
     StdoutLogger* gRHILoaderSink = nullptr;
     StdoutLogger* gRHISink = nullptr;
+    StdoutLogger* gRHIValidationSink = nullptr;
     StdoutLogger* gSGSink = nullptr;
     ILogStream* gShaderSink = nullptr;
 
@@ -49,6 +50,7 @@ namespace VisualTests {
         gPlatformSink = new StdoutLogger("PLATFORM");
         gSGSink = new StdoutLogger("TASKGRAPH");
         gRHILoaderSink = new StdoutLogger("RHILOADER");
+        gRHIValidationSink = new StdoutLogger("RHIVALIDATION");
         gShaderSink = new StdoutLogger("SLANGCOMPILER");
 
         PlatformFactory::Get<IWindowManager>()->InjectLogger(gPlatformSink);
@@ -72,6 +74,7 @@ namespace VisualTests {
         delete gPlatformSink;
         delete gSGSink;
         delete gRHILoaderSink;
+        delete gRHIValidationSink;
         delete static_cast<StdoutLogger*>(gShaderSink);
         if (gRHISink) {
             delete gRHISink;
@@ -99,6 +102,8 @@ namespace VisualTests {
             mTaskRenderGraph->BeginFrame();
             mTaskRenderGraph->Execute();
             mTaskRenderGraph->EndFrame();
+
+            mRHIManager->GetRHIDevice()->CollectGarbage();
         }
     }
 
@@ -233,6 +238,7 @@ namespace VisualTests {
                 delete gRHISink;
             gRHISink = new StdoutLogger(useRHIInfo.shorthand);
             createInfo.pLoggerSink = gRHISink;
+            createInfo.pDebugSink = gRHIValidationSink;
             if (!mRHIManager->AttachRHI(useRHI, createInfo)) {
                 Logger::Warn(gRHILoaderSink, "Target RHI failed to attach, trying to attach next best RHI");
                 u32 numRhis = static_cast<u32>(mRHIManager->QueryAvailableRHIs().size());

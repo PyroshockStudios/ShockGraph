@@ -77,38 +77,47 @@ namespace PyroshockStudios {
             BufferUsageFlags extraRequiredFlags = {};
             eastl::vector<Buffer> buffersInFlight{};
             Buffer buffer = PYRO_NULL_BUFFER;
-            ASSERT(!(!info.bCpuVisible && info.bReadback), "Readback buffers MUST be ");
             if (!initialData.empty()) {
                 extraRequiredFlags |= BufferUsageFlagBits::TRANSFER_DST;
             }
-            if (info.bDynamic) {
+            bool bExposeFlightBuffers = info.mode == TaskBufferMode::HostDynamic || info.mode == TaskBufferMode::Readback;
+            if (info.mode == TaskBufferMode::Dynamic || bExposeFlightBuffers) {
                 buffersInFlight.resize(mFramesInFlight);
                 for (i32 i = 0; i < mFramesInFlight; ++i) {
                     buffersInFlight[i] = mDevice->CreateBuffer({
                         .size = info.size,
-                        .usage = BufferUsageFlagBits::TRANSFER_SRC | extraRequiredFlags,
-                        .initialLayout = info.bReadback ? BufferLayout::TransferDst : BufferLayout::TransferSrc,
-                        .allocationDomain = info.bReadback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite,
+                        .usage = (bExposeFlightBuffers ? (info.usage) : (BufferUsageFlagBits::TRANSFER_SRC)) | extraRequiredFlags,
+                        .initialLayout = info.mode == TaskBufferMode::Readback ? BufferLayout::TransferDst : BufferLayout::TransferSrc,
+                        .allocationDomain = info.mode == TaskBufferMode::Readback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite,
                         .name = info.name + " (In Flight #" + eastl::to_string(i) + ")",
                     });
                 }
             }
-            if (info.bDynamic && info.bCpuVisible) {
+            if (info.mode == TaskBufferMode::Readback || info.mode == TaskBufferMode::HostDynamic) {
                 // No need to duplicate the buffers, can read write anyway
                 buffer = buffersInFlight[0];
-            } else {
+            } else if (info.mode == TaskBufferMode::Default) {
                 buffer = mDevice->CreateBuffer({
                     .size = info.size,
                     .usage = info.usage | extraRequiredFlags,
-                    .initialLayout = info.bCpuVisible ? (info.bReadback ? BufferLayout::TransferDst : BufferLayout::ReadOnly) : BufferLayout::Undefined,
-                    .allocationDomain = info.bCpuVisible ? (info.bReadback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite) : MemoryAllocationDomain::DeviceLocal,
+                    .initialLayout = BufferLayout::Undefined,
+                    .allocationDomain = MemoryAllocationDomain::DeviceLocal,
                     .name = info.name,
                 });
+            } else if (info.mode == TaskBufferMode::Dynamic) {
+                buffer = mDevice->CreateBuffer({
+                    .size = info.size,
+                    .usage = info.usage | extraRequiredFlags,
+                    .initialLayout = BufferLayout::TransferDst,
+                    .allocationDomain = MemoryAllocationDomain::DeviceLocal,
+                    .name = info.name,
+                });
+            } else {
+                ASSERT("Bad buffer mode!");
             }
 
             if (!initialData.empty()) {
-                ASSERT(!info.bDynamic, "Cannot initialise a dynamic buffer with data!");
-                ASSERT(!info.bReadback, "Cannot initialise a readback buffer with data!");
+                ASSERT(info.mode == TaskBufferMode::Default, "Only buffers with Default mode can be initialised with data!");
                 ASSERT(initialData.size_bytes() >= info.size, "Initial data is too small in size!");
                 Buffer staging = mDevice->CreateBuffer({
                     .size = info.size,
@@ -129,7 +138,7 @@ namespace PyroshockStudios {
             }
 
             TaskBuffer retBuffer = TaskBuffer::Create(this, info, eastl::move(buffer), eastl::move(buffersInFlight));
-            if (info.bDynamic) {
+            if (info.mode == TaskBufferMode::Dynamic || info.mode == TaskBufferMode::HostDynamic || info.mode == TaskBufferMode::Readback) {
                 mDynamicBuffers.emplace_back(retBuffer.Get());
             }
             return retBuffer;
@@ -198,7 +207,7 @@ namespace PyroshockStudios {
                 .size = info.size,
                 .name = info.name,
             });
-            
+
             return TaskBlas::Create(this, info, eastl::move(blas));
         }
 
@@ -207,7 +216,7 @@ namespace PyroshockStudios {
                 .size = info.size,
                 .name = info.name,
             });
-            
+
             return TaskTlas::Create(this, info, eastl::move(tlas));
         }
 
@@ -434,7 +443,8 @@ namespace PyroshockStudios {
         }
 
         void TaskResourceManager::ReleaseBufferResource(TaskBuffer_* resource) {
-            if (resource->Info().bDynamic) {
+            const auto& info = resource->Info();
+            if (info.mode == TaskBufferMode::Dynamic || info.mode == TaskBufferMode::HostDynamic || info.mode == TaskBufferMode::Readback) {
                 auto it = eastl::find(mDynamicBuffers.begin(), mDynamicBuffers.end(), resource);
                 ASSERT(it != mDynamicBuffers.end());
                 mDynamicBuffers.erase(it);

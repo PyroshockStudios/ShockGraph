@@ -52,6 +52,7 @@ namespace VisualTests {
             {
                 .size = gVertices.size() * sizeof(Vertex),
                 .usage = BufferUsageFlagBits::VERTEX_BUFFER,
+                .mode = TaskBufferMode::Default, 
                 .name = "Vertex Buffer VBO",
             },
             { (u8*)gVertices.cbegin(), (u8*)gVertices.cend() });

@@ -76,6 +76,7 @@ namespace VisualTests {
             {
                 .size = gVertices.size() * sizeof(Vertex),
                 .usage = BufferUsageFlagBits::VERTEX_BUFFER,
+                .mode = TaskBufferMode::Default,
                 .name = "Draw Indirect VBO",
             },
             { reinterpret_cast<const u8*>(gVertices.data()), reinterpret_cast<const u8*>(gVertices.data() + gVertices.size()) });
@@ -84,6 +85,7 @@ namespace VisualTests {
             {
                 .size = gDrawCmds.size() * sizeof(DrawArgumentBuffer),
                 .usage = BufferUsageFlagBits::DRAW_INDIRECT,
+                .mode = TaskBufferMode::Default,
                 .name = "Draw Indirect Argument Buffers",
             },
             { reinterpret_cast<const u8*>(gDrawCmds.cbegin()), reinterpret_cast<const u8*>(gDrawCmds.cend()) });

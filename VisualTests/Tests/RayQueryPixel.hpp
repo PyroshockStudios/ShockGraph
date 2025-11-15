@@ -25,22 +25,23 @@
 
 
 namespace VisualTests {
-    class RayTracingCompute : public IVisualTest, DeleteCopy, DeleteMove {
-        eastl::string Title() const override { return "Ray Query Compute"; }
+    class RayQueryPixel : public IVisualTest, DeleteCopy, DeleteMove {
+        eastl::string Title() const override { return "Ray Query Pixel Shader"; }
 
         void CreateResources(const CreateResourceInfo& info) override;
         void ReleaseResources(const ReleaseResourceInfo& info) override;
         eastl::span<GenericTask*> CreateTasks() override;
 
         bool UseTaskGraph() const override { return true; }
-    TaskImage GetCompositeImageTaskGraph() override { return image; }
-    Image GetCompositeImageRaw() override { return image->Internal(); }
+        TaskImage GetCompositeImageTaskGraph() override { return image; }
+        Image GetCompositeImageRaw() override { return image->Internal(); }
 
     private:
-    TaskImage image;
-        UnorderedAccessId imageUav;
-        TaskShader csh;
-        TaskComputePipeline computePipeline;
+        TaskImage image;
+        TaskColorTarget imageTarget;
+        TaskShader vsh;
+        TaskShader fsh;
+        TaskRasterPipeline pipeline;
 
         // Acceleration structure resources
         TaskBuffer vertexBuffer;
@@ -50,7 +51,7 @@ namespace VisualTests {
         TaskBuffer tlasScratchBuffer;
         TaskBlas blas;
         TaskTlas tlas;
-
+        bool bBuilt = false;
         eastl::vector<GenericTask*> tasks = {};
     };
 } // namespace VisualTests

@@ -32,7 +32,8 @@
 #include "Tests/AlphaToCoverage.hpp"
 #include "Tests/BlitImage.hpp"
 #include "Tests/ComputeUAV.hpp"
-#include "Tests/RayTracingCompute.hpp"
+#include "Tests/RayQueryCompute.hpp"
+#include "Tests/RayQueryPixel.hpp"
 #include "Tests/DrawIndirect.hpp"
 #include "Tests/GeometryShader.hpp"
 #include "Tests/HelloTexture.hpp"
@@ -68,6 +69,8 @@ using namespace VisualTests;
 
 int main(i32 argc, char** argv) {
     VisualTestApp* app = new VisualTestApp();
+    app->RegisterTest<VisualTests::RayQueryPixel>();
+    app->RegisterTest<VisualTests::RayQueryCompute>();
     app->RegisterTest<VisualTests::HelloTriangle>();
     app->RegisterTest<VisualTests::PushConstants>();
     app->RegisterTest<VisualTests::UniformBuffer>();
@@ -85,7 +88,6 @@ int main(i32 argc, char** argv) {
     app->RegisterTest<VisualTests::GeometryShader>();
     app->RegisterTest<VisualTests::TesselationShader>();
     app->RegisterTest<VisualTests::ComputeUAV>();
-    app->RegisterTest<VisualTests::RayTracingCompute>();
     app->RegisterTest<VisualTests::BlitImage>();
     app->RegisterTest<VisualTests::UpdateBuffer>();
 

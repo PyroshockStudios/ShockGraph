@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "RayQueryPixel.hpp"
+#include <PyroRHI/Context.hpp>
 
 namespace VisualTests {
     // --- Build geometry buffers for BLAS/TLAS
@@ -28,6 +29,10 @@ namespace VisualTests {
         f32 x, y, z;
     };
     void RayQueryPixel::CreateResources(const CreateResourceInfo& info) {
+        IDevice* device = info.resourceManager.GetInternalDevice();
+
+        device->SetShaderModel(info.resourceManager.GetInternalContext()->GetMinimumShaderModelFeatureTier(ShaderModelFeatureBits::RAY_QUERY));
+
         image = info.resourceManager.CreatePersistentImage({
             .format = Format::RGBA8Unorm,
             .size = { info.displayInfo.width, info.displayInfo.height },
@@ -70,9 +75,6 @@ namespace VisualTests {
                 .mode = TaskBufferMode::Host,
                 .name = "RT Indices",
             });
-
-        // Get the internal device to query size requirements
-        IDevice* device = info.resourceManager.GetInternalDevice();
 
         // Prepare RHI Blas geometry info
         BlasTriangleGeometryInfo triGeo{};

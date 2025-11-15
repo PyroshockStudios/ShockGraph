@@ -273,14 +273,6 @@ namespace VisualTests {
                 CreateRHI();
                 return;
             }
-
-            if (strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "dx12") == 0) {
-                mRHIManager->GetRHIDevice()->SetShaderModel(0x65);
-            }
-
-            if (strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "vk13") == 0) {
-                mRHIManager->GetRHIDevice()->SetShaderModel(0x14);
-            }
         } else {
             Logger::Fatal(gRHILoaderSink, "Failed to find a suitable RHI!");
         }

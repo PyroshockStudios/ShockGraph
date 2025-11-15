@@ -4,3 +4,4 @@
 [submodule "vendor/PyroRHI"]
 	path = vendor/PyroRHI
 	url = https://github.com/PyroshockStudios/PyroRHI.git
+	branch = legacy-support

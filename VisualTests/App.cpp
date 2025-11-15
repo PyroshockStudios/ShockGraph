@@ -35,6 +35,7 @@ namespace VisualTests {
     StdoutLogger* gPlatformSink = nullptr;
     StdoutLogger* gRHILoaderSink = nullptr;
     StdoutLogger* gRHISink = nullptr;
+    StdoutLogger* gRHIValidationSink = nullptr;
     StdoutLogger* gSGSink = nullptr;
     ILogStream* gShaderSink = nullptr;
 
@@ -49,6 +50,7 @@ namespace VisualTests {
         gPlatformSink = new StdoutLogger("PLATFORM");
         gSGSink = new StdoutLogger("TASKGRAPH");
         gRHILoaderSink = new StdoutLogger("RHILOADER");
+        gRHIValidationSink = new StdoutLogger("RHIVALIDATION");
         gShaderSink = new StdoutLogger("SLANGCOMPILER");
 
         PlatformFactory::Get<IWindowManager>()->InjectLogger(gPlatformSink);
@@ -72,6 +74,7 @@ namespace VisualTests {
         delete gPlatformSink;
         delete gSGSink;
         delete gRHILoaderSink;
+        delete gRHIValidationSink;
         delete static_cast<StdoutLogger*>(gShaderSink);
         if (gRHISink) {
             delete gRHISink;
@@ -99,6 +102,8 @@ namespace VisualTests {
             mTaskRenderGraph->BeginFrame();
             mTaskRenderGraph->Execute();
             mTaskRenderGraph->EndFrame();
+
+            mRHIManager->GetRHIDevice()->CollectGarbage();
         }
     }
 
@@ -119,17 +124,37 @@ namespace VisualTests {
 
     void VisualTestApp::NextTest() {
         ReleaseTaskResources();
+
         u32 numTests = static_cast<u32>(mTests.size());
+    tryagain: {
         mCurrentTest = (mCurrentTest + 1) % numTests;
+        if (!mTests[mCurrentTest]->TaskSupported(mRHIManager->GetRHIDevice())) {
+            goto tryagain;
+        }
+    }
+
         RebuildTaskGraph();
     }
 
     void VisualTestApp::PrevTest() {
         ReleaseTaskResources();
+
         u32 numTests = static_cast<u32>(mTests.size());
+    tryagain: {
         mCurrentTest = (mCurrentTest + numTests - 1) % numTests;
+        if (!mTests[mCurrentTest]->TaskSupported(mRHIManager->GetRHIDevice())) {
+            goto tryagain;
+        }
+    }
+
         RebuildTaskGraph();
     }
+
+    void VisualTestApp::ReloadTest() {
+        ReleaseTaskResources();
+        RebuildTaskGraph();
+    }
+
 
     void VisualTestApp::ReleaseTaskResources() {
         if (mRHIManager->GetRHIDevice())
@@ -183,6 +208,9 @@ namespace VisualTests {
                 Logger::Info(gSGSink, "-- GRAPH FLUSHES TIMING -- {:.5f} ms", mTaskRenderGraph->GetMiscFlushesTimingsNs() / 1e6);
                 Logger::Info(gSGSink, "--  TOTAL GRAPH TIMING  -- {:.5f} ms", mTaskRenderGraph->GetGraphTimingsNs() / 1e6);
             } break;
+            case KeyCode::KeyR:
+                ReloadTest();
+                break;
             }
         });
     }
@@ -233,6 +261,7 @@ namespace VisualTests {
                 delete gRHISink;
             gRHISink = new StdoutLogger(useRHIInfo.shorthand);
             createInfo.pLoggerSink = gRHISink;
+            createInfo.pDebugSink = gRHIValidationSink;
             if (!mRHIManager->AttachRHI(useRHI, createInfo)) {
                 Logger::Warn(gRHILoaderSink, "Target RHI failed to attach, trying to attach next best RHI");
                 u32 numRhis = static_cast<u32>(mRHIManager->QueryAvailableRHIs().size());
@@ -243,6 +272,14 @@ namespace VisualTests {
                 ++mFailedRHICreationAttempts;
                 CreateRHI();
                 return;
+            }
+
+            if (strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "dx12") == 0) {
+                mRHIManager->GetRHIDevice()->SetShaderModel(0x65);
+            }
+
+            if (strcmp(mRHIManager->GetAttachedRHIInfo().info.shorthand, "vk13") == 0) {
+                mRHIManager->GetRHIDevice()->SetShaderModel(0x14);
             }
         } else {
             Logger::Fatal(gRHILoaderSink, "Failed to find a suitable RHI!");
@@ -295,7 +332,7 @@ namespace VisualTests {
             mCurrentTestTasks.emplace_back(eastl::unique_ptr<GenericTask>(task));
         }
         TaskImage toComposite = ActiveTest()->GetCompositeImageTaskGraph();
-        Rect2D srcRect = Rect2D::Cut({ toComposite->Info().size.x, toComposite->Info().size.y });
+        Rect2D srcRect = Rect2D::Cut({ toComposite->Info().size.width, toComposite->Info().size.height });
         Rect2D dstRect = Rect2D::Cut({ mActiveWindow->GetSize().width, mActiveWindow->GetSize().height });
         if (mRHIManager->GetAttachedRHI()->Properties().viewportConvention == RHIViewportConvention::LeftHanded_OriginTopLeft) {
             dstRect.y = dstRect.height;

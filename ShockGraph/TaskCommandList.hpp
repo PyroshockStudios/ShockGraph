@@ -24,6 +24,7 @@
 
 #include "Resources.hpp"
 #include <PyroRHI/Api/ICommandBuffer.hpp>
+#include <PyroRHI/Api/IDevice.hpp>
 
 namespace PyroshockStudios {
     inline namespace Renderer {
@@ -99,6 +100,29 @@ namespace PyroshockStudios {
         struct TaskDispatchIndirectInfo {
             TaskBufferRef indirectBuffer;
             usize indirectBufferOffset = {};
+        };
+
+        struct TaskBlasBuildInfo {
+            AccelerationStructureCreateFlags flags = AccelerationStructureCreateFlagBits::NONE;
+            bool bUpdate = false;
+            TaskBlas srcBlas = {};
+            TaskBlas dstBlas = {};
+            eastl::variant<eastl::span<const BlasTriangleGeometryInfo>, eastl::span<const BlasAabbGeometryInfo>> geometries = {};
+            Buffer scratchBuffer = PYRO_NULL_BUFFER;
+        };
+
+        struct TaskTlasBuildInfo {
+            AccelerationStructureCreateFlags flags = AccelerationStructureCreateFlagBits::NONE;
+            bool update = false;
+            TaskTlas srcTlas = {};
+            TaskTlas dstTlas = {};
+            TlasInstanceInfo instances = {};
+            Buffer scratchBuffer = PYRO_NULL_BUFFER;
+        };
+
+        struct TaskBuildAccelerationStructuresInfo {
+            eastl::span<const TaskTlasBuildInfo> tlasBuildInfos = {};
+            eastl::span<const TaskBlasBuildInfo> blasBuildInfos = {};
         };
 
         class TaskCommandList : DeleteCopy, DeleteMove {
@@ -217,6 +241,40 @@ namespace PyroshockStudios {
                 });
             }
 
+            PYRO_FORCEINLINE void BuildAccelerationStructures(const TaskBuildAccelerationStructuresInfo& info) {
+                eastl::vector<TlasBuildInfo> tlasBuildInfos = {};
+                eastl::vector<BlasBuildInfo> blasBuildInfos = {};
+
+                tlasBuildInfos.reserve(info.tlasBuildInfos.size());
+                for (const auto& t : info.tlasBuildInfos) {
+                    TlasBuildInfo out = {};
+                    out.flags = t.flags;
+                    out.update = t.update;
+                    out.srcTlas = t.srcTlas ? t.srcTlas->Internal() : PYRO_NULL_TLAS;
+                    out.dstTlas = t.dstTlas ? t.dstTlas->Internal() : PYRO_NULL_TLAS;
+                    out.instances = t.instances;
+                    out.scratchBuffer = t.scratchBuffer;
+                    tlasBuildInfos.push_back(out);
+                }
+
+                blasBuildInfos.reserve(info.blasBuildInfos.size());
+                for (const auto& b : info.blasBuildInfos) {
+                    BlasBuildInfo out = {};
+                    out.flags = b.flags;
+                    out.bUpdate = b.bUpdate;
+                    out.srcBlas = b.srcBlas ? b.srcBlas->Internal() : PYRO_NULL_BLAS;
+                    out.dstBlas = b.dstBlas ? b.dstBlas->Internal() : PYRO_NULL_BLAS;
+                    out.geometries = b.geometries;
+                    out.scratchBuffer = b.scratchBuffer;
+                    blasBuildInfos.push_back(out);
+                }
+
+                mCommandBuffer->BuildAccelerationStructures({
+                    .tlasBuildInfos = tlasBuildInfos,
+                    .blasBuildInfos = blasBuildInfos,
+                });
+            }
+
             PYRO_FORCEINLINE ICommandBuffer* Internal() {
                 return mCommandBuffer;
             }
@@ -227,7 +285,7 @@ namespace PyroshockStudios {
                 if (!pipeline->mbDirty)
                     return;
                 pipeline->mbDirty = false;
-                mCommandBuffer->DestroyDeferred(pipeline->mPipeline);
+                mOwningDevice->Destroy(pipeline->mPipeline, true);
                 pipeline->Recreate();
             }
 

@@ -56,6 +56,13 @@ namespace PyroshockStudios {
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator==(const TaskImageDependencyInfo&) const = default;
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator!=(const TaskImageDependencyInfo&) const = default;
         };
+        struct TaskAccelerationStructureDependencyInfo {
+            eastl::variant<TaskBlas, TaskTlas> accelerationStructure;
+            TaskAccessType access;
+
+            PYRO_NODISCARD PYRO_FORCEINLINE bool operator==(const TaskAccelerationStructureDependencyInfo&) const = default;
+            PYRO_NODISCARD PYRO_FORCEINLINE bool operator!=(const TaskAccelerationStructureDependencyInfo&) const = default;
+        };
 
         struct TaskInfo {
             eastl::string name = {};
@@ -80,6 +87,7 @@ namespace PyroshockStudios {
 
             SHOCKGRAPH_API void UseBuffer(const TaskBufferDependencyInfo& info);
             SHOCKGRAPH_API void UseImage(const TaskImageDependencyInfo& info);
+            SHOCKGRAPH_API void UseAccelerationStructure(const TaskAccelerationStructureDependencyInfo& info);
 
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskInfo& Info() const {
                 return mTaskInfo;
@@ -89,6 +97,7 @@ namespace PyroshockStudios {
             struct GenericSetup {
                 eastl::vector<TaskBufferDependencyInfo> bufferDepends;
                 eastl::vector<TaskImageDependencyInfo> imageDepends;
+                eastl::vector<TaskAccelerationStructureDependencyInfo> accelerationStructureDepends;
             };
 
             GenericSetup mSetupData = {};

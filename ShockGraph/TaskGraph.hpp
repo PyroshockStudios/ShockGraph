@@ -27,6 +27,7 @@
 #include "TaskResourceManager.hpp"
 #include <EASTL/unique_ptr.h>
 #include <EASTL/vector.h>
+#include <EASTL/hash_map.h>
 #include <PyroCommon/LoggerInterface.hpp>
 #include <PyroRHI/Api/Semaphore.hpp>
 
@@ -93,16 +94,25 @@ namespace PyroshockStudios {
             IDevice* mDevice = {};
             TaskResourceManager* mResourceManager = {};
 
+            struct BatchBarrier {
+                eastl::vector<BufferMemoryBarrierInfo> buffer = {};
+                eastl::vector<ImageMemoryBarrierInfo> image = {};
+                eastl::vector<AccelerationStructureBarrierInfo> accelerationStructure = {};
+            };
             struct Batch {
                 eastl::vector<TaskId> taskIds = {};
-                eastl::vector<BufferMemoryBarrierInfo> bufferBarriers = {};
-                eastl::vector<ImageMemoryBarrierInfo> imageBarriers = {};
+                BatchBarrier barriers = {};
             };
 
             ICommandQueue* mQueue = nullptr;
 
             eastl::vector<eastl::unique_ptr<GenericTask>> mInternalTasks = {};
             eastl::vector<Batch> mBatches = {};
+
+            // HACK: Pre-dx12 enhanced barriers, cannot assume COMMON->anything as a valid transition, so we must track.
+            eastl::hash_map<Buffer, BufferLayout> mLastKnownBufferLayouts = {};
+            eastl::hash_map<Image, ImageLayout> mLastKnownImageLayouts = {};
+
             eastl::vector<TaskExecute*> mTasks = {};
             eastl::vector<TaskSwapChain> mSwapChains = {};
 

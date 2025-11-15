@@ -58,6 +58,8 @@ namespace PyroshockStudios {
 
             PYRO_NODISCARD SHOCKGRAPH_API TaskBuffer CreatePersistentBuffer(const TaskBufferInfo& info, eastl::span<const u8> initialData = {});
             PYRO_NODISCARD SHOCKGRAPH_API TaskImage CreatePersistentImage(const TaskImageInfo& info, eastl::span<const u8> initialData = {});
+            PYRO_NODISCARD SHOCKGRAPH_API TaskBlas CreatePersistentBlas(const TaskBlasInfo& info);
+            PYRO_NODISCARD SHOCKGRAPH_API TaskTlas CreatePersistentTlas(const TaskTlasInfo& info);
 
             PYRO_NODISCARD SHOCKGRAPH_API ShaderResourceId DefaultShaderResourceView(TaskImage image);
             PYRO_NODISCARD SHOCKGRAPH_API ShaderResourceId DefaultShaderResourceView(TaskBuffer image);

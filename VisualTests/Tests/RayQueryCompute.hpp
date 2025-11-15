@@ -25,8 +25,8 @@
 
 
 namespace VisualTests {
-    class UniformBuffer : public IVisualTest, DeleteCopy, DeleteMove {
-        eastl::string Title() const override { return "Uniform Buffer"; }
+    class RayQueryCompute : public IVisualTest, DeleteCopy, DeleteMove {
+        eastl::string Title() const override { return "Ray Query Compute"; }
 
         void CreateResources(const CreateResourceInfo& info) override;
         void ReleaseResources(const ReleaseResourceInfo& info) override;
@@ -36,15 +36,23 @@ namespace VisualTests {
         TaskImage GetCompositeImageTaskGraph() override { return image; }
         Image GetCompositeImageRaw() override { return image->Internal(); }
 
-       bool TaskSupported(IDevice* device) override { return true; }
+        bool TaskSupported(IDevice* device) override;
 
     private:
         TaskImage image;
-        TaskBuffer ubo;
-        TaskColorTarget target;
-        TaskShader vsh, fsh;
-        TaskRasterPipeline pipeline;
+        UnorderedAccessId imageUav;
+        TaskShader csh;
+        TaskComputePipeline computePipeline;
 
+        // Acceleration structure resources
+        TaskBuffer vertexBuffer;
+        TaskBuffer indexBuffer;
+        TaskBuffer instanceBuffer;
+        TaskBuffer blasScratchBuffer;
+        TaskBuffer tlasScratchBuffer;
+        TaskBlas blas;
+        TaskTlas tlas;
+        bool bBuilt = false;
         eastl::vector<GenericTask*> tasks = {};
     };
 } // namespace VisualTests

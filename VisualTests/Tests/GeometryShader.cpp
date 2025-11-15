@@ -80,4 +80,5 @@ namespace VisualTests {
         };
         return tasks;
     }
+    bool GeometryShader::TaskSupported(IDevice* device) { return device->Features().bGeometryShaders; }
 } // namespace VisualTests

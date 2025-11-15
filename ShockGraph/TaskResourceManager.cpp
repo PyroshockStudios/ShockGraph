@@ -64,6 +64,7 @@ namespace PyroshockStudios {
             ASSERT(mDevice, "Device was not set!");
             ASSERT(mFramesInFlight >= 2, "Frames in flight must be at least 2!");
         }
+
         SHOCKGRAPH_API TaskResourceManager::~TaskResourceManager() {
             if (mResources.size() != mTombstones.size()) {
                 Logger::Fatal(mLogStream, "Not all resources have been released before task resource manager destruction! "
@@ -71,42 +72,60 @@ namespace PyroshockStudios {
             }
             delete mShaderReloadListener;
         }
+
         SHOCKGRAPH_API TaskBuffer TaskResourceManager::CreatePersistentBuffer(const TaskBufferInfo& info, eastl::span<const u8> initialData) {
             BufferUsageFlags extraRequiredFlags = {};
             eastl::vector<Buffer> buffersInFlight{};
             Buffer buffer = PYRO_NULL_BUFFER;
-            ASSERT(!(!info.bCpuVisible && info.bReadback), "Readback buffers MUST be ");
             if (!initialData.empty()) {
                 extraRequiredFlags |= BufferUsageFlagBits::TRANSFER_DST;
             }
-            if (info.bDynamic) {
+            bool bExposeFlightBuffers = info.mode == TaskBufferMode::HostDynamic || info.mode == TaskBufferMode::Readback;
+            if (info.mode == TaskBufferMode::Dynamic || bExposeFlightBuffers) {
                 buffersInFlight.resize(mFramesInFlight);
                 for (i32 i = 0; i < mFramesInFlight; ++i) {
                     buffersInFlight[i] = mDevice->CreateBuffer({
                         .size = info.size,
-                        .usage = BufferUsageFlagBits::TRANSFER_SRC | BufferUsageFlagBits::HOST_WRITE | extraRequiredFlags,
-                        .initialLayout = info.bReadback ? BufferLayout::TransferDst : BufferLayout::TransferSrc,
-                        .allocationDomain = info.bReadback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite,
+                        .usage = (bExposeFlightBuffers ? (info.usage) : (BufferUsageFlagBits::TRANSFER_SRC)) | extraRequiredFlags,
+                        .initialLayout = info.mode == TaskBufferMode::Readback ? BufferLayout::TransferDst : BufferLayout::TransferSrc,
+                        .allocationDomain = info.mode == TaskBufferMode::Readback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite,
                         .name = info.name + " (In Flight #" + eastl::to_string(i) + ")",
                     });
                 }
             }
-            if (info.bDynamic && info.bCpuVisible) {
+            if (info.mode == TaskBufferMode::Readback || info.mode == TaskBufferMode::HostDynamic) {
                 // No need to duplicate the buffers, can read write anyway
                 buffer = buffersInFlight[0];
-            } else {
+            } else if (info.mode == TaskBufferMode::Default) {
                 buffer = mDevice->CreateBuffer({
                     .size = info.size,
                     .usage = info.usage | extraRequiredFlags,
-                    .initialLayout = info.bCpuVisible ? (info.bReadback ? BufferLayout::TransferDst : BufferLayout::ReadOnly) : BufferLayout::Undefined,
-                    .allocationDomain = info.bCpuVisible ? (info.bReadback ? MemoryAllocationDomain::HostReadback : MemoryAllocationDomain::HostRandomWrite) : MemoryAllocationDomain::DeviceLocal,
+                    .initialLayout = BufferLayout::Undefined,
+                    .allocationDomain = MemoryAllocationDomain::DeviceLocal,
                     .name = info.name,
                 });
+            } else if (info.mode == TaskBufferMode::Host) {
+                buffer = mDevice->CreateBuffer({
+                    .size = info.size,
+                    .usage = info.usage | extraRequiredFlags,
+                    .initialLayout = BufferLayout::ReadOnly,
+                    .allocationDomain = MemoryAllocationDomain::HostRandomWrite,
+                    .name = info.name,
+                });
+            } else if (info.mode == TaskBufferMode::Dynamic) {
+                buffer = mDevice->CreateBuffer({
+                    .size = info.size,
+                    .usage = info.usage | extraRequiredFlags,
+                    .initialLayout = BufferLayout::TransferDst,
+                    .allocationDomain = MemoryAllocationDomain::DeviceLocal,
+                    .name = info.name,
+                });
+            } else {
+                ASSERT("Bad buffer mode!");
             }
 
             if (!initialData.empty()) {
-                ASSERT(!info.bDynamic, "Cannot initialise a dynamic buffer with data!");
-                ASSERT(!info.bReadback, "Cannot initialise a readback buffer with data!");
+                ASSERT(info.mode == TaskBufferMode::Default, "Only buffers with Default mode can be initialised with data!");
                 ASSERT(initialData.size_bytes() >= info.size, "Initial data is too small in size!");
                 Buffer staging = mDevice->CreateBuffer({
                     .size = info.size,
@@ -126,12 +145,16 @@ namespace PyroshockStudios {
                 mPendingStagingUploads.emplace_back(eastl::move(uploadPair));
             }
 
+            if (info.mode == TaskBufferMode::Host) {
+                buffersInFlight.resize(mFramesInFlight, buffer);
+            }
             TaskBuffer retBuffer = TaskBuffer::Create(this, info, eastl::move(buffer), eastl::move(buffersInFlight));
-            if (info.bDynamic) {
+            if (info.mode == TaskBufferMode::Dynamic || info.mode == TaskBufferMode::HostDynamic || info.mode == TaskBufferMode::Readback) {
                 mDynamicBuffers.emplace_back(retBuffer.Get());
             }
             return retBuffer;
         }
+
         SHOCKGRAPH_API TaskImage TaskResourceManager::CreatePersistentImage(const TaskImageInfo& info, eastl::span<const u8> initialData) {
             ImageUsageFlags extraRequiredFlags = {};
 
@@ -150,8 +173,8 @@ namespace PyroshockStudios {
             });
             // FIXME, texture arrays/mipmaps!
             if (!initialData.empty()) {
-                const u32 rowAlignment = mDevice->GetProperties().bufferImageRowAlignment;
-                const DeviceSize minReqSize = RHIUtil::GetRequiredStagingSize(info.format, info.size.x, info.size.y, info.size.z, 1);
+                const u32 rowAlignment = mDevice->Properties().bufferImageRowAlignment;
+                const DeviceSize minReqSize = RHIUtil::GetRequiredStagingSize(info.format, info.size.width, info.size.height, info.size.depth, 1);
                 ASSERT(minReqSize > 0, "Invalid format for staging upload");
                 ASSERT(initialData.size_bytes() >= minReqSize, "Initial data is too small in size!");
 
@@ -163,12 +186,12 @@ namespace PyroshockStudios {
                     .name = info.name + " (Staging Buffer)",
                 });
 
-                const u32 rowWidth = static_cast<u32>(minReqSize / info.size.z / info.size.y);
-                const u32 rowPitch = mDevice->ImageSubresourceRowPitch(image, {}, rowWidth);
+                const u32 rowWidth = static_cast<u32>(minReqSize / info.size.depth / info.size.height);
+                const u32 rowPitch = mDevice->ImageSubresourceRowPitch(image, rowWidth, {});
 
                 u8* dstPtr = mDevice->BufferHostAddress(staging);
                 const u8* srcPtr = initialData.data();
-                RHIUtil::CopyAlignedTextureData(srcPtr, dstPtr, rowWidth, info.size.y, info.size.z, rowPitch);
+                RHIUtil::CopyAlignedTextureData(srcPtr, dstPtr, rowWidth, info.size.height, info.size.depth, rowPitch);
 
                 StagingUploadPair uploadPair{};
                 uploadPair.srcBuffer = staging;
@@ -189,6 +212,25 @@ namespace PyroshockStudios {
             }
             return TaskImage::Create(this, info, eastl::move(image));
         }
+
+        SHOCKGRAPH_API TaskBlas TaskResourceManager::CreatePersistentBlas(const TaskBlasInfo& info) {
+            BlasId blas = mDevice->CreateBlas({
+                .size = info.size,
+                .name = info.name,
+            });
+
+            return TaskBlas::Create(this, info, eastl::move(blas));
+        }
+
+        SHOCKGRAPH_API TaskTlas TaskResourceManager::CreatePersistentTlas(const TaskTlasInfo& info) {
+            TlasId tlas = mDevice->CreateTlas({
+                .size = info.size,
+                .name = info.name,
+            });
+
+            return TaskTlas::Create(this, info, eastl::move(tlas));
+        }
+
         SHOCKGRAPH_API ShaderResourceId TaskResourceManager::DefaultShaderResourceView(TaskImage image) {
             auto& imageInfo = mDevice->GetImageInfo(image->Internal());
             ImageResourceInfo resourceInfo{
@@ -216,6 +258,7 @@ namespace PyroshockStudios {
             }
             return mDevice->CreateShaderResource(resourceInfo);
         }
+
         SHOCKGRAPH_API ShaderResourceId TaskResourceManager::DefaultShaderResourceView(TaskBuffer buffer) {
             auto& bufferInfo = mDevice->GetBufferInfo(buffer->Internal());
             BufferResourceInfo resourceInfo{
@@ -238,6 +281,7 @@ namespace PyroshockStudios {
             });
             return TaskColorTarget::Create(this, info, eastl::move(renderTarget));
         }
+
         SHOCKGRAPH_API TaskDepthStencilTarget TaskResourceManager::CreateDepthStencilTarget(const TaskDepthStencilTargetInfo& info) {
             ASSERT(info.image, "No Image defined!");
             RenderTarget renderTarget = mDevice->CreateRenderTarget({
@@ -248,12 +292,14 @@ namespace PyroshockStudios {
             });
             return TaskDepthStencilTarget::Create(this, info, eastl::move(renderTarget));
         }
+
         SHOCKGRAPH_API ShaderResourceId TaskResourceManager::CreateShaderResourceView(const TaskBufferResourceInfo& info) {
             return mDevice->CreateShaderResource(BufferResourceInfo{
                 .buffer = info.buffer->Internal(),
                 .region = info.region,
             });
         }
+
         SHOCKGRAPH_API ShaderResourceId TaskResourceManager::CreateShaderResourceView(const TaskImageResourceInfo& info) {
             return mDevice->CreateShaderResource(ImageResourceInfo{
                 .image = info.image->Internal(),
@@ -262,12 +308,14 @@ namespace PyroshockStudios {
                 .format = info.format,
             });
         }
+
         SHOCKGRAPH_API UnorderedAccessId TaskResourceManager::CreateUnorderedAccessView(const TaskBufferResourceInfo& info) {
             return mDevice->CreateUnorderedAccess(BufferResourceInfo{
                 .buffer = info.buffer->Internal(),
                 .region = info.region,
             });
         }
+
         SHOCKGRAPH_API UnorderedAccessId TaskResourceManager::CreateUnorderedAccessView(const TaskImageResourceInfo& info) {
             return mDevice->CreateUnorderedAccess(ImageResourceInfo{
                 .image = info.image->Internal(),
@@ -276,15 +324,19 @@ namespace PyroshockStudios {
                 .format = info.format,
             });
         }
+
         SHOCKGRAPH_API SamplerId TaskResourceManager::CreateSampler(const TaskSamplerInfo& info) {
             return mDevice->CreateSampler(info);
         }
+
         SHOCKGRAPH_API void TaskResourceManager::ReleaseShaderResourceView(ShaderResourceId& id) {
             mDevice->Destroy(id);
         }
+
         SHOCKGRAPH_API void TaskResourceManager::ReleaseUnorderedAccessView(UnorderedAccessId& id) {
             mDevice->Destroy(id);
         }
+
         SHOCKGRAPH_API void TaskResourceManager::ReleaseSampler(SamplerId& id) {
             mDevice->Destroy(id);
         }
@@ -325,12 +377,14 @@ namespace PyroshockStudios {
             pipeline->Recreate();
             return pipeline;
         }
+
         SHOCKGRAPH_API TaskComputePipeline TaskResourceManager::CreateComputePipeline(const TaskComputePipelineInfo& info, const TaskShaderInfo& shader) {
             TaskComputePipeline pipeline = TaskComputePipeline::Create(this, info, shader);
             shader.program->mUsedByResources.emplace_back(pipeline.Get());
             pipeline->Recreate();
             return pipeline;
         }
+
         SHOCKGRAPH_API TaskSwapChain TaskResourceManager::CreateSwapChain(const TaskSwapChainInfo& info) {
             SwapChainFormat format = {};
             switch (info.format) {
@@ -357,7 +411,7 @@ namespace PyroshockStudios {
                 .nativeInstance = info.nativeInstance,
 #endif
                 .format = format,
-                .presentMode = info.vsync ? PresentMode::VSync : PresentMode::LowLatency,
+                .presentMode = info.vsync ? SwapChainPresentMode::VSync : SwapChainPresentMode::LowLatency,
                 .bufferCount = mFramesInFlight,
                 .imageUsage = info.imageUsage,
 #ifdef SHOCKGRAPH_USE_PYRO_PLATFORM
@@ -369,12 +423,15 @@ namespace PyroshockStudios {
             });
             return TaskSwapChain::Create(this, info, eastl::move(swapChain));
         }
+
         void TaskResourceManager::SetFramesInFlight(u32 newFramesInFlight) {
             ASSERT(false, "Not implemented");
         }
+
         IShaderReloadListener* TaskResourceManager::GetShaderReloadListener() {
             return mShaderReloadListener;
         }
+
         void TaskResourceManager::RegisterResource(TaskResource_* resource) {
             resource->mOwner = this;
             if (mTombstones.empty()) {
@@ -386,6 +443,7 @@ namespace PyroshockStudios {
                 mResources[resource->mId] = resource;
             }
         }
+
         void TaskResourceManager::ReleaseResource(TaskResource_* resource) {
             u32 slot = resource->GetId();
             ASSERT(mResources.size() > slot, "Bad slot!");
@@ -394,8 +452,10 @@ namespace PyroshockStudios {
             mTombstones.emplace_back(slot);
             mResources[slot] = {};
         }
+
         void TaskResourceManager::ReleaseBufferResource(TaskBuffer_* resource) {
-            if (resource->Info().bDynamic) {
+            const auto& info = resource->Info();
+            if (info.mode == TaskBufferMode::Dynamic || info.mode == TaskBufferMode::HostDynamic || info.mode == TaskBufferMode::Readback) {
                 auto it = eastl::find(mDynamicBuffers.begin(), mDynamicBuffers.end(), resource);
                 ASSERT(it != mDynamicBuffers.end());
                 mDynamicBuffers.erase(it);
@@ -410,6 +470,7 @@ namespace PyroshockStudios {
                 }
             }
         }
+
         void TaskResourceManager::ReleaseImageResource(TaskImage_* resource) {
             for (auto& staging : mPendingStagingUploads) {
                 for (i32 i = 0; i < staging.uploads.size(); ++i) {

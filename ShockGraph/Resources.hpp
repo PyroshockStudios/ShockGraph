@@ -27,6 +27,7 @@
 #ifdef SHOCKGRAPH_USE_PYRO_PLATFORM
 #include <PyroPlatform/Forward.hpp>
 #endif
+#include <PyroRHI/Api/AccelerationStructure.hpp>
 #include <PyroRHI/Api/Forward.hpp>
 #include <PyroRHI/Api/GPUResource.hpp>
 #include <PyroRHI/Api/Pipeline.hpp>
@@ -183,15 +184,18 @@ namespace PyroshockStudios {
 
         using TaskComputePipelineRef = TaskComputePipeline&;
 
+        enum struct TaskBufferMode : u32 {
+            Default = 0,     ///< Stored on Device, not accessible from CPU.
+            Host = 1,        ///< Stored on Host, with CPU read/write access, but GPU read-only. Not to be confused with HostDynamic, as this does not allow for safe per-frame write access.
+            Dynamic = 2,     ///< Stored on Device, with CPU write access, but GPU read-only. Optimised for fast GPU access, but writes may be slower.
+            HostDynamic = 3, ///< Stored on Host memory, with CPU read/write access, but GPU read-only. Optimised for fast CPU access, but reads may be slower.
+            Readback = 4,    ///< Stored on Host memory, with CPU read access, but GPU write-only.
+        };
+
         struct TaskBufferInfo {
             usize size = 0;
             BufferUsageFlags usage = {};
-            // Buffer is stored on CPU visible memory
-            bool bCpuVisible = false;
-            // Buffer can be read from CPU
-            bool bReadback = false;
-            // Buffer is reliably accessible between CPU and GPU
-            bool bDynamic = false;
+            TaskBufferMode mode = TaskBufferMode::Default;
             eastl::string name = {};
         };
         struct TaskBuffer_ final : public TaskResource_ {
@@ -335,5 +339,50 @@ namespace PyroshockStudios {
         };
         using TaskSwapChain = SharedRef<TaskSwapChain_>;
         using TaskSwapChainRef = TaskSwapChain&;
+
+        struct TaskBlasInfo {
+            usize size = 0;
+            eastl::string name = {};
+        };
+        struct TaskBlas_ final : public TaskResource_ {
+            SHOCKGRAPH_API TaskBlas_(TaskResourceManager* owner, const TaskBlasInfo& info, BlasId&& blas);
+            SHOCKGRAPH_API ~TaskBlas_() override;
+            PYRO_NODISCARD PYRO_FORCEINLINE BlasId Internal() {
+                return mBlas;
+            }
+            PYRO_NODISCARD PYRO_FORCEINLINE const TaskBlasInfo& Info() const { return mInfo; }
+            PYRO_NODISCARD BlasAddress InstanceAddress();
+
+        private:
+            BlasId mBlas = PYRO_NULL_BLAS;
+            TaskBlasInfo mInfo;
+
+            friend class TaskResourceManager;
+            friend class TaskGraph;
+        };
+        using TaskBlas = SharedRef<TaskBlas_>;
+        using TaskBlasRef = TaskBlas&;
+
+        struct TaskTlasInfo {
+            usize size = 0;
+            eastl::string name = {};
+        };
+        struct TaskTlas_ final : public TaskResource_ {
+            SHOCKGRAPH_API TaskTlas_(TaskResourceManager* owner, const TaskTlasInfo& info, TlasId&& tlas);
+            SHOCKGRAPH_API ~TaskTlas_() override;
+            PYRO_NODISCARD PYRO_FORCEINLINE TlasId Internal() {
+                return mTlas;
+            }
+            PYRO_NODISCARD PYRO_FORCEINLINE const TaskTlasInfo& Info() const { return mInfo; }
+
+        private:
+            TlasId mTlas = PYRO_NULL_TLAS;
+            TaskTlasInfo mInfo;
+
+            friend class TaskResourceManager;
+            friend class TaskGraph;
+        };
+        using TaskTlas = SharedRef<TaskTlas_>;
+        using TaskTlasRef = TaskTlas&;
     } // namespace Renderer
 } // namespace PyroshockStudios

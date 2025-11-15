@@ -90,7 +90,7 @@ namespace VisualTests {
         ubo = info.resourceManager.CreatePersistentBuffer({
             .size = sizeof(GlobalUbo),
             .usage = BufferUsageFlagBits::UNIFORM_BUFFER,
-            .bDynamic = true,
+            .mode = TaskBufferMode::Dynamic,
             .name = "Vertex Colours Uniform Buffer",
         });
         target = info.resourceManager.CreateColorTarget({

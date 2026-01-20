@@ -402,6 +402,13 @@ namespace PyroshockStudios {
             }
             mSwapChains.clear();
             mInternalTasks.clear();
+            // Make sure to reset tasks as these may require setup again!
+            for (auto& task : mTasks) {
+                auto& setupData = task->GetTask()->mSetupData;
+                setupData.accelerationStructureDepends.clear();
+                setupData.bufferDepends.clear();
+                setupData.imageDepends.clear();
+            }
             mTasks.clear();
             mBatches.clear();
             mAllTaskRefs.clear();

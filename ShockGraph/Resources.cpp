@@ -65,7 +65,7 @@ namespace PyroshockStudios {
             if (mStages.fragmentShaderInfo) {
                 mStages.fragmentShaderInfo->program->RemoveReference(this);
             }
-            Device()->Destroy(mPipeline);
+            Device()->DestroyDeferred(mPipeline);
         }
         void TaskRasterPipeline_::Recreate() {
             RasterPipelineShaderStages copyStages;
@@ -116,7 +116,7 @@ namespace PyroshockStudios {
         }
         SHOCKGRAPH_API TaskComputePipeline_::~TaskComputePipeline_() {
             mShader.program->RemoveReference(this);
-            Device()->Destroy(mPipeline);
+            Device()->DestroyDeferred(mPipeline);
         }
         void TaskComputePipeline_::Recreate() {
             ShaderInfo copyShader;
@@ -133,11 +133,11 @@ namespace PyroshockStudios {
             if (this->mInfo.mode == TaskBufferMode::HostDynamic || this->mInfo.mode == TaskBufferMode::Readback) {
                 // Do not destroy mBuffer as it is the same stuff as in mInFlightBuffers!
             } else {
-                Device()->Destroy(mBuffer);
+                Device()->DestroyDeferred(mBuffer);
             }
             if (this->mInfo.mode != TaskBufferMode::Host) {  // Do not destroy these as they are copies of mBuffer!
                 for (auto& buffer : mInFlightBuffers) {
-                    Device()->Destroy(buffer);
+                    Device()->DestroyDeferred(buffer);
                 }
             }
         }
@@ -150,31 +150,31 @@ namespace PyroshockStudios {
         }
         SHOCKGRAPH_API TaskImage_::~TaskImage_() {
             Owner()->ReleaseImageResource(this);
-            Device()->Destroy(mImage);
+            Device()->DestroyDeferred(mImage);
         }
         SHOCKGRAPH_API TaskColorTarget_::TaskColorTarget_(TaskResourceManager* owner, const TaskColorTargetInfo& info, RenderTarget&& renderTarget)
             : TaskResource_(owner), mRenderTarget(renderTarget), mInfo(info) {
         }
         SHOCKGRAPH_API TaskColorTarget_::~TaskColorTarget_() {
-            Device()->Destroy(mRenderTarget);
+            Device()->DestroyDeferred(mRenderTarget);
         }
         SHOCKGRAPH_API TaskDepthStencilTarget_::TaskDepthStencilTarget_(TaskResourceManager* owner, const TaskDepthStencilTargetInfo& info, RenderTarget&& renderTarget)
             : TaskResource_(owner), mRenderTarget(renderTarget), mInfo(info) {
         }
         SHOCKGRAPH_API TaskDepthStencilTarget_::~TaskDepthStencilTarget_() {
-            Device()->Destroy(mRenderTarget);
+            Device()->DestroyDeferred(mRenderTarget);
         }
         SHOCKGRAPH_API TaskSwapChain_::TaskSwapChain_(TaskResourceManager* owner, const TaskSwapChainInfo& info, ISwapChain*&& swapChain)
             : TaskResource_(owner), mSwapChain(swapChain), mInfo(info) {
         }
         SHOCKGRAPH_API TaskSwapChain_::~TaskSwapChain_() {
-            Device()->Destroy(mSwapChain);
+            Device()->DestroyDeferred(mSwapChain);
         }
         SHOCKGRAPH_API TaskBlas_::TaskBlas_(TaskResourceManager* owner, const TaskBlasInfo& info, BlasId&& blas)
             : TaskResource_(owner), mBlas(blas), mInfo(info) {
         }
         SHOCKGRAPH_API TaskBlas_::~TaskBlas_() {
-            Device()->Destroy(mBlas);
+            Device()->DestroyDeferred(mBlas);
         }
         PYRO_NODISCARD BlasAddress TaskBlas_::InstanceAddress() {
             return Device()->BlasInstanceAddress(mBlas);
@@ -183,7 +183,7 @@ namespace PyroshockStudios {
             : TaskResource_(owner), mTlas(tlas), mInfo(info) {
         }
         SHOCKGRAPH_API TaskTlas_::~TaskTlas_() {
-            Device()->Destroy(mTlas);
+            Device()->DestroyDeferred(mTlas);
         }
     } // namespace Renderer
 } // namespace PyroshockStudios

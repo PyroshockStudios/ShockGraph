@@ -393,15 +393,20 @@ namespace PyroshockStudios {
                 delete task;
             }
             if (!mTimestampQueryPools.empty()) {
-                // FIXME: remove this wait idle once we have a command list DestroyDeferred function for this!
-                mDevice->WaitIdle();
                 for (i32 i = 0; i < mFramesInFlight; ++i) {
-                    mDevice->Destroy(mTimestampQueryPools[i]);
+                    mDevice->DestroyDeferred(mTimestampQueryPools[i]);
                 }
                 mTimestampQueryPools.clear();
             }
             mSwapChains.clear();
             mInternalTasks.clear();
+            // Make sure to reset tasks as these may require setup again!
+            for (auto& task : mTasks) {
+                auto& setupData = task->GetTask()->mSetupData;
+                setupData.accelerationStructureDepends.clear();
+                setupData.bufferDepends.clear();
+                setupData.imageDepends.clear();
+            }
             mTasks.clear();
             mBatches.clear();
             mAllTaskRefs.clear();

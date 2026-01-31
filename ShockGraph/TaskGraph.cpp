@@ -400,18 +400,9 @@ namespace PyroshockStudios {
             }
             mSwapChains.clear();
             mInternalTasks.clear();
-            // Make sure to reset tasks as these may require setup again!
-            for (auto& task : mTasks) {
-                auto& setupData = task->GetTask()->mSetupData;
-                setupData.accelerationStructureDepends.clear();
-                setupData.bufferDepends.clear();
-                setupData.imageDepends.clear();
-            }
             mTasks.clear();
             mBatches.clear();
             mAllTaskRefs.clear();
-            mLastKnownBufferLayouts.clear();
-            mLastKnownImageLayouts.clear();
             bBaked = false;
         }
         SHOCKGRAPH_API void TaskGraph::Build() {
@@ -699,22 +690,22 @@ namespace PyroshockStudios {
                         .name = "Sync Barriers Batch #" + eastl::to_string(batchIndex) });
 
                     for (auto barrier : batch.barriers.buffer) {
-                        auto lastKnownLayout = mLastKnownBufferLayouts.find(barrier.buffer);
-                        if (lastKnownLayout != mLastKnownBufferLayouts.end()) {
+                        auto lastKnownLayout = mResourceManager->mLastKnownBufferLayouts.find(barrier.buffer);
+                        if (lastKnownLayout != mResourceManager->mLastKnownBufferLayouts.end()) {
                             barrier.srcLayout = lastKnownLayout->second;
                             lastKnownLayout->second = barrier.dstLayout;
                         } else {
-                            mLastKnownBufferLayouts[barrier.buffer] = barrier.dstLayout;
+                            mResourceManager->mLastKnownBufferLayouts[barrier.buffer] = barrier.dstLayout;
                         }
                         commandBuffer->BufferBarrier(barrier);
                     }
                     for (auto barrier : batch.barriers.image) {
-                        auto lastKnownLayout = mLastKnownImageLayouts.find(barrier.image);
-                        if (lastKnownLayout != mLastKnownImageLayouts.end()) {
+                        auto lastKnownLayout = mResourceManager->mLastKnownImageLayouts.find(barrier.image);
+                        if (lastKnownLayout != mResourceManager->mLastKnownImageLayouts.end()) {
                             barrier.srcLayout = lastKnownLayout->second;
                             lastKnownLayout->second = barrier.dstLayout;
                         } else {
-                            mLastKnownImageLayouts[barrier.image] = barrier.dstLayout;
+                            mResourceManager->mLastKnownImageLayouts[barrier.image] = barrier.dstLayout;
                         }
                         commandBuffer->ImageBarrier(barrier);
                     }
@@ -773,6 +764,13 @@ namespace PyroshockStudios {
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 
+        SHOCKGRAPH_API u64 TaskGraph::GetCpuTimelineValue() const {
+            return mCpuTimelineIndex;
+        }
+        SHOCKGRAPH_API IFence* TaskGraph::GetTimelineFence() {
+            return mGpuFrameTimeline;
+        }
+
         void TaskGraph::FlushStagingBuffers(ICommandBuffer* commandBuffer) {
             commandBuffer->BeginLabel({ .labelColor = LabelColor::BLUE,
                 .name = "Flush staging buffers" });
@@ -805,7 +803,7 @@ namespace PyroshockStudios {
                             .srcLayout = BufferLayout::TransferDst,
                             .dstLayout = stagingUpload.dstBufferLayout,
                         });
-                        mLastKnownBufferLayouts[stagingUpload.dstBuffer] = stagingUpload.dstBufferLayout;
+                        mResourceManager->mLastKnownBufferLayouts[stagingUpload.dstBuffer] = stagingUpload.dstBufferLayout;
                     }
                     if (stagingUpload.dstImage) {
                         commandBuffer->ImageBarrier({
@@ -828,7 +826,7 @@ namespace PyroshockStudios {
                             .srcLayout = ImageLayout::TransferDst,
                             .dstLayout = stagingUpload.dstImageLayout,
                         });
-                        mLastKnownImageLayouts[stagingUpload.dstImage] = stagingUpload.dstImageLayout;
+                        mResourceManager->mLastKnownImageLayouts[stagingUpload.dstImage] = stagingUpload.dstImageLayout;
                     }
                 }
                 mDevice->Destroy(uploadPair.srcBuffer, true);
@@ -876,7 +874,7 @@ namespace PyroshockStudios {
                         .srcLayout = BufferLayout::TransferDst,
                         .dstLayout = BufferLayout::ReadOnly,
                     });
-                    mLastKnownBufferLayouts[bufferCopy->Internal()] = BufferLayout::ReadOnly;
+                    mResourceManager->mLastKnownBufferLayouts[bufferCopy->Internal()] = BufferLayout::ReadOnly;
                 }
             }
             commandBuffer->EndLabel();

@@ -459,6 +459,17 @@ namespace PyroshockStudios {
                 auto it = eastl::find(mDynamicBuffers.begin(), mDynamicBuffers.end(), resource);
                 ASSERT(it != mDynamicBuffers.end());
                 mDynamicBuffers.erase(it);
+                for (Buffer buffer : resource->mInFlightBuffers) {
+                    auto it = mLastKnownBufferLayouts.find(buffer);
+                    if (it != mLastKnownBufferLayouts.end()) {
+                        mLastKnownBufferLayouts.erase(it);
+                    }
+                }
+            } else {
+                auto it = mLastKnownBufferLayouts.find(resource->Internal());
+                if (it != mLastKnownBufferLayouts.end()) {
+                    mLastKnownBufferLayouts.erase(it);
+                }
             }
             for (auto& staging : mPendingStagingUploads) {
                 for (i32 i = 0; i < staging.uploads.size(); ++i) {
@@ -480,6 +491,10 @@ namespace PyroshockStudios {
                         --i;
                     }
                 }
+            }
+            auto it = mLastKnownImageLayouts.find(resource->Internal());
+            if (it != mLastKnownImageLayouts.end()) {
+                mLastKnownImageLayouts.erase(it);
             }
         }
     } // namespace Renderer

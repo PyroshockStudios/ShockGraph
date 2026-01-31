@@ -66,6 +66,13 @@ namespace PyroshockStudios {
         SHOCKGRAPH_API void GenericTask::UseAccelerationStructure(const TaskAccelerationStructureDependencyInfo& info) {
             mSetupData.accelerationStructureDepends.emplace_back(info);
         }
+        SHOCKGRAPH_API void GenericTask::Reset() {
+            mSetupData.bufferDepends.clear();
+            mSetupData.imageDepends.clear();
+            mSetupData.accelerationStructureDepends.clear();
+        }
+
+
         SHOCKGRAPH_API void CustomTask::ExecuteTask(TaskCommandList& commandList) {
             ExecuteTask(commandList.Internal());
         }

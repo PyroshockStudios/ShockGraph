@@ -27,7 +27,6 @@
 #include "TaskResourceManager.hpp"
 #include <EASTL/unique_ptr.h>
 #include <EASTL/vector.h>
-#include <EASTL/hash_map.h>
 #include <PyroCommon/LoggerInterface.hpp>
 #include <PyroRHI/Api/Semaphore.hpp>
 
@@ -70,22 +69,33 @@ namespace PyroshockStudios {
                 mLogStream = stream;
             }
 
-            SHOCKGRAPH_API eastl::span<GenericTask*> GetTasks();
+            PYRO_NODISCARD SHOCKGRAPH_API eastl::span<GenericTask*> GetTasks();
 
             /**
              * @brief Returns the GPU timings in nanoseconds of a specific task.
              */
-            SHOCKGRAPH_API f64 GetTaskTimingsNs(GenericTask* task);
+            PYRO_NODISCARD SHOCKGRAPH_API f64 GetTaskTimingsNs(GenericTask* task);
             /**
              * @brief Returns the GPU timings in nanoseconds of the entire task graph.
              */
-            SHOCKGRAPH_API f64 GetGraphTimingsNs();
+            PYRO_NODISCARD SHOCKGRAPH_API f64 GetGraphTimingsNs();
             /**
              * @brief Returns the GPU timings in nanoseconds of the per-frame flushes
              * such as staging buffers, dynamic buffers. This includes both buffer copies
              * and buffer/image barriers.
              */
-            SHOCKGRAPH_API f64 GetMiscFlushesTimingsNs();
+            PYRO_NODISCARD SHOCKGRAPH_API f64 GetMiscFlushesTimingsNs();
+
+            /**
+             * @brief Returns the current timeline value tracked on the CPU.
+             * This is the value that the gpu has finished processing so far.
+             */
+            PYRO_NODISCARD SHOCKGRAPH_API u64 GetCpuTimelineValue() const;
+
+            /**
+             * @brief Returns the GPU timeline fence. You may wait for this, but do NOT modify timeline values!
+             */
+            PYRO_NODISCARD SHOCKGRAPH_API IFence* GetTimelineFence();
 
         private:
             void FlushStagingBuffers(ICommandBuffer* commandBuffer);
@@ -108,10 +118,6 @@ namespace PyroshockStudios {
 
             eastl::vector<eastl::unique_ptr<GenericTask>> mInternalTasks = {};
             eastl::vector<Batch> mBatches = {};
-
-            // HACK: Pre-dx12 enhanced barriers, cannot assume COMMON->anything as a valid transition, so we must track.
-            eastl::hash_map<Buffer, BufferLayout> mLastKnownBufferLayouts = {};
-            eastl::hash_map<Image, ImageLayout> mLastKnownImageLayouts = {};
 
             eastl::vector<TaskExecute*> mTasks = {};
             eastl::vector<TaskSwapChain> mSwapChains = {};

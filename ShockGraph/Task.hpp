@@ -89,6 +89,8 @@ namespace PyroshockStudios {
             SHOCKGRAPH_API void UseImage(const TaskImageDependencyInfo& info);
             SHOCKGRAPH_API void UseAccelerationStructure(const TaskAccelerationStructureDependencyInfo& info);
 
+            SHOCKGRAPH_API void Reset();
+
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskInfo& Info() const {
                 return mTaskInfo;
             }

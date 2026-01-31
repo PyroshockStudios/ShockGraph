@@ -26,6 +26,7 @@
 #include <PyroCommon/LoggerInterface.hpp>
 #include <PyroRHI/Api/Forward.hpp>
 #include <ShockGraph/Core.hpp>
+#include <EASTL/hash_map.h>
 
 namespace PyroshockStudios {
     inline namespace Renderer {
@@ -122,6 +123,10 @@ namespace PyroshockStudios {
             };
             eastl::vector<StagingUploadPair> mPendingStagingUploads = {};
             eastl::vector<TaskBuffer_*> mDynamicBuffers = {};
+            
+            // HACK: Pre-dx12 enhanced barriers, cannot assume COMMON->anything as a valid transition, so we must track.
+            eastl::hash_map<Buffer, BufferLayout> mLastKnownBufferLayouts = {};
+            eastl::hash_map<Image, ImageLayout> mLastKnownImageLayouts = {};
 
             IDevice* mDevice = nullptr;
             RHIContext* mRHI = nullptr;

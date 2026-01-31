@@ -330,15 +330,15 @@ namespace PyroshockStudios {
         }
 
         SHOCKGRAPH_API void TaskResourceManager::ReleaseShaderResourceView(ShaderResourceId& id) {
-            mDevice->Destroy(id);
+            mDevice->DestroyDeferred(id);
         }
 
         SHOCKGRAPH_API void TaskResourceManager::ReleaseUnorderedAccessView(UnorderedAccessId& id) {
-            mDevice->Destroy(id);
+            mDevice->DestroyDeferred(id);
         }
 
         SHOCKGRAPH_API void TaskResourceManager::ReleaseSampler(SamplerId& id) {
-            mDevice->Destroy(id);
+            mDevice->DestroyDeferred(id);
         }
 
         SHOCKGRAPH_API TaskRasterPipeline TaskResourceManager::CreateRasterPipeline(const TaskRasterPipelineInfo& info, const TaskRasterPipelineShaders& shaders) {

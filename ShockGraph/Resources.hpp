@@ -35,6 +35,7 @@
 #include <PyroRHI/Api/Types.hpp>
 #include <PyroRHI/Shader/ShaderProgram.hpp>
 #include <ShockGraph/Core.hpp>
+#include <mutex>
 
 namespace PyroshockStudios {
     inline namespace Renderer {
@@ -205,12 +206,12 @@ namespace PyroshockStudios {
                 return mBuffer;
             }
             PYRO_NODISCARD PYRO_FORCEINLINE Buffer InternalInFlightBuffer(u32 index) {
-                return mInFlightBuffers[index];
+                return mInFlightBuffers.size() == 1 ? mInFlightBuffers.front() : mInFlightBuffers[index];
             }
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskBufferInfo& Info() const { return mInfo; }
 
-            // TODO: maybe a WriteMemory function, or a Flush function to allow for better copy caching?
-            PYRO_NODISCARD SHOCKGRAPH_API u8* MappedMemory();
+            PYRO_NODISCARD SHOCKGRAPH_API void* MapMemory(const BufferRegion& region = {});
+            SHOCKGRAPH_API void UnmapMemory(void* memory);
 
         private:
             Buffer mBuffer = PYRO_NULL_BUFFER;
@@ -226,6 +227,7 @@ namespace PyroshockStudios {
         using TaskBufferRef = TaskBuffer&;
 
         struct TaskImageInfo {
+            ImageCreateFlags flags = ImageCreateFlagBits::NONE;
             ImageDimensions dimensions = ImageDimensions::e2D;
             Format format = Format::RGBA8Unorm;
             Extent3D size = {};
@@ -252,7 +254,15 @@ namespace PyroshockStudios {
                 };
             }
 
+            PYRO_NODISCARD SHOCKGRAPH_API ShaderResourceId ShaderResource() const;
+            PYRO_NODISCARD SHOCKGRAPH_API UnorderedAccessId UnorderedAccess() const;
+
         private:
+            PYRO_NODISCARD ImageResourceInfo GetDefaultResourceInfo() const;
+
+            mutable std::mutex mShaderResourceLock;
+            mutable ShaderResourceId srvId;
+            mutable UnorderedAccessId uavId;
             Image mImage = PYRO_NULL_IMAGE;
             TaskImageInfo mInfo;
         };
@@ -272,6 +282,7 @@ namespace PyroshockStudios {
             }
 
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskColorTargetInfo& Info() const { return mInfo; }
+            PYRO_NODISCARD PYRO_FORCEINLINE TaskImage Image() const { return mInfo.image; }
 
         private:
             RenderTarget mRenderTarget = nullptr;
@@ -295,6 +306,7 @@ namespace PyroshockStudios {
             }
 
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskDepthStencilTargetInfo& Info() const { return mInfo; }
+            PYRO_NODISCARD PYRO_FORCEINLINE TaskImage Image() const { return mInfo.image; }
 
         private:
             RenderTarget mRenderTarget = nullptr;
@@ -308,6 +320,7 @@ namespace PyroshockStudios {
             e10Bit,
             e16BitHDR,
         };
+        static constexpr u32 TASK_SWAP_CHAIN_AUTO_BUFFERS = 0;
         struct TaskSwapChainInfo {
 #ifdef SHOCKGRAPH_USE_PYRO_PLATFORM
             IWindow* window = nullptr;
@@ -318,6 +331,7 @@ namespace PyroshockStudios {
 #endif
             TaskSwapChainFormat format = TaskSwapChainFormat::e8Bit;
             ImageUsageFlags imageUsage = ImageUsageFlagBits::NONE;
+            u32 bufferCount = TASK_SWAP_CHAIN_AUTO_BUFFERS;
             bool vsync = true;
             eastl::string name = {};
         };

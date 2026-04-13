@@ -29,27 +29,29 @@
 #include <PyroRHI/Api/IDevice.hpp>
 #include <PyroRHI/Api/Types.hpp>
 
+#include <future>
+
 namespace PyroshockStudios {
     inline namespace Renderer {
-        SHOCKGRAPH_API TaskResource_ ::TaskResource_(TaskResourceManager* owner) : mOwner(owner) {
+        TaskResource_ ::TaskResource_(TaskResourceManager* owner) : mOwner(owner) {
             mOwner->RegisterResource(this);
         }
-        SHOCKGRAPH_API TaskResource_ ::~TaskResource_() {
+        TaskResource_ ::~TaskResource_() {
             mOwner->ReleaseResource(this);
         }
 
         IDevice* TaskResource_::Device() {
             return mOwner->mDevice;
         }
-        SHOCKGRAPH_API TaskShader_::TaskShader_(ShaderProgram&& program, FunctionPtr<void(void*, TaskShader_*)> deleter, void* deleterUserData)
+        TaskShader_::TaskShader_(ShaderProgram&& program, FunctionPtr<void(void*, TaskShader_*)> deleter, void* deleterUserData)
             : mProgram(eastl::move(program)), mDeleter(eastl::move(deleter)), mDeleterUserData(deleterUserData) {}
 
-        SHOCKGRAPH_API TaskShader_::~TaskShader_() { mDeleter(mDeleterUserData, this); }
+        TaskShader_::~TaskShader_() { mDeleter(mDeleterUserData, this); }
 
-        SHOCKGRAPH_API TaskRasterPipeline_::TaskRasterPipeline_(TaskResourceManager* owner, const TaskRasterPipelineInfo& info, const TaskRasterPipelineShaders& shaderStages)
+        TaskRasterPipeline_::TaskRasterPipeline_(TaskResourceManager* owner, const TaskRasterPipelineInfo& info, const TaskRasterPipelineShaders& shaderStages)
             : TaskResource_(owner), mInfo(info), mStages(shaderStages) {
         }
-        SHOCKGRAPH_API TaskRasterPipeline_::~TaskRasterPipeline_() {
+        TaskRasterPipeline_::~TaskRasterPipeline_() {
             if (mStages.vertexShaderInfo) {
                 mStages.vertexShaderInfo->program->RemoveReference(this);
             }
@@ -65,7 +67,7 @@ namespace PyroshockStudios {
             if (mStages.fragmentShaderInfo) {
                 mStages.fragmentShaderInfo->program->RemoveReference(this);
             }
-            Device()->Destroy(mPipeline);
+            Device()->DestroyDeferred(mPipeline);
         }
         void TaskRasterPipeline_::Recreate() {
             RasterPipelineShaderStages copyStages;
@@ -111,12 +113,12 @@ namespace PyroshockStudios {
             }
             mPipeline = Device()->Create(mInfo, copyStages);
         }
-        SHOCKGRAPH_API TaskComputePipeline_::TaskComputePipeline_(TaskResourceManager* owner, const TaskComputePipelineInfo& info, const TaskShaderInfo& shader)
+        TaskComputePipeline_::TaskComputePipeline_(TaskResourceManager* owner, const TaskComputePipelineInfo& info, const TaskShaderInfo& shader)
             : TaskResource_(owner), mInfo(info), mShader(shader) {
         }
-        SHOCKGRAPH_API TaskComputePipeline_::~TaskComputePipeline_() {
+        TaskComputePipeline_::~TaskComputePipeline_() {
             mShader.program->RemoveReference(this);
-            Device()->Destroy(mPipeline);
+            Device()->DestroyDeferred(mPipeline);
         }
         void TaskComputePipeline_::Recreate() {
             ShaderInfo copyShader;
@@ -125,65 +127,109 @@ namespace PyroshockStudios {
             mPipeline = Device()->Create(mInfo, copyShader);
         }
 
-        SHOCKGRAPH_API TaskBuffer_::TaskBuffer_(TaskResourceManager* owner, const TaskBufferInfo& info, Buffer&& buffer, eastl::vector<Buffer>&& inFlightBuffers)
+        TaskBuffer_::TaskBuffer_(TaskResourceManager* owner, const TaskBufferInfo& info, Buffer&& buffer, eastl::vector<Buffer>&& inFlightBuffers)
             : TaskResource_(owner), mBuffer(buffer), mInFlightBuffers(eastl::move(inFlightBuffers)), mInfo(info) {
         }
-        SHOCKGRAPH_API TaskBuffer_::~TaskBuffer_() {
+        TaskBuffer_::~TaskBuffer_() {
             Owner()->ReleaseBufferResource(this);
             if (this->mInfo.mode == TaskBufferMode::HostDynamic || this->mInfo.mode == TaskBufferMode::Readback) {
                 // Do not destroy mBuffer as it is the same stuff as in mInFlightBuffers!
             } else {
-                Device()->Destroy(mBuffer);
+                Device()->DestroyDeferred(mBuffer);
             }
-            if (this->mInfo.mode != TaskBufferMode::Host) {  // Do not destroy these as they are copies of mBuffer!
+            if (this->mInfo.mode != TaskBufferMode::Host) { // Do not destroy these as they are copies of mBuffer!
                 for (auto& buffer : mInFlightBuffers) {
-                    Device()->Destroy(buffer);
+                    Device()->DestroyDeferred(buffer);
                 }
             }
         }
-        SHOCKGRAPH_API u8* TaskBuffer_::MappedMemory() {
-            // FIXME host visible buffer with no in flight buffers
-            return Device()->BufferHostAddress(InternalInFlightBuffer(mCurrentBufferInFlight));
+        void* TaskBuffer_::MapMemory(const BufferRegion& region) {
+            return Device()->BufferHostAddress(InternalInFlightBuffer(mCurrentBufferInFlight)) + region.offset;
         }
-        SHOCKGRAPH_API TaskImage_::TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, Image&& image)
+        void TaskBuffer_::UnmapMemory(void* memory) {
+        }
+        TaskImage_::TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, Image&& image)
             : TaskResource_(owner), mImage(image), mInfo(info) {
         }
-        SHOCKGRAPH_API TaskImage_::~TaskImage_() {
+        TaskImage_::~TaskImage_() {
             Owner()->ReleaseImageResource(this);
-            Device()->Destroy(mImage);
+            Device()->DestroyDeferred(mImage);
+            if (srvId != PYRO_NULL_SRV) {
+                Device()->DestroyDeferred(srvId);
+            }
+            if (uavId != PYRO_NULL_UAV) {
+                Device()->DestroyDeferred(uavId);
+            }
         }
-        SHOCKGRAPH_API TaskColorTarget_::TaskColorTarget_(TaskResourceManager* owner, const TaskColorTargetInfo& info, RenderTarget&& renderTarget)
+        ShaderResourceId TaskImage_::ShaderResource() const {
+            std::lock_guard l(mShaderResourceLock);
+            if (srvId == PYRO_NULL_SRV) {
+                srvId = const_cast<TaskImage_*>(this)->Device()->CreateShaderResource(GetDefaultResourceInfo());
+            }
+            return srvId;
+        }
+        UnorderedAccessId TaskImage_::UnorderedAccess() const {
+            std::lock_guard l(mShaderResourceLock);
+            if (uavId == PYRO_NULL_UAV) {
+                uavId = const_cast<TaskImage_*>(this)->Device()->CreateUnorderedAccess(GetDefaultResourceInfo());
+            }
+            return uavId;
+        }
+        ImageResourceInfo TaskImage_::GetDefaultResourceInfo() const {
+            ImageResourceInfo info;
+            info.image = mImage;
+            info.slice.layerCount = mInfo.arrayLayerCount;
+            info.slice.levelCount = mInfo.mipLevelCount;
+            switch (mInfo.dimensions) {
+            case ImageDimensions::e1D:
+                info.viewType = mInfo.arrayLayerCount > 1 ? ImageViewType::e1DArray : ImageViewType::e1D;
+                break;
+            case ImageDimensions::e2D:
+                if (mInfo.flags & ImageCreateFlagBits::CUBE) {
+                    info.viewType = mInfo.arrayLayerCount > 6 ? ImageViewType::eCubeArray : ImageViewType::eCube;
+                } else {
+                    info.viewType = mInfo.arrayLayerCount > 1 ? ImageViewType::e2DArray : ImageViewType::e2D;
+                }
+                break;
+            case ImageDimensions::e3D:
+                info.viewType = ImageViewType::e3D;
+                break;
+            }
+            return info;
+        }
+
+        TaskColorTarget_::TaskColorTarget_(TaskResourceManager* owner, const TaskColorTargetInfo& info, RenderTarget&& renderTarget)
             : TaskResource_(owner), mRenderTarget(renderTarget), mInfo(info) {
         }
-        SHOCKGRAPH_API TaskColorTarget_::~TaskColorTarget_() {
-            Device()->Destroy(mRenderTarget);
+        TaskColorTarget_::~TaskColorTarget_() {
+            Device()->DestroyDeferred(mRenderTarget);
         }
-        SHOCKGRAPH_API TaskDepthStencilTarget_::TaskDepthStencilTarget_(TaskResourceManager* owner, const TaskDepthStencilTargetInfo& info, RenderTarget&& renderTarget)
+        TaskDepthStencilTarget_::TaskDepthStencilTarget_(TaskResourceManager* owner, const TaskDepthStencilTargetInfo& info, RenderTarget&& renderTarget)
             : TaskResource_(owner), mRenderTarget(renderTarget), mInfo(info) {
         }
-        SHOCKGRAPH_API TaskDepthStencilTarget_::~TaskDepthStencilTarget_() {
-            Device()->Destroy(mRenderTarget);
+        TaskDepthStencilTarget_::~TaskDepthStencilTarget_() {
+            Device()->DestroyDeferred(mRenderTarget);
         }
-        SHOCKGRAPH_API TaskSwapChain_::TaskSwapChain_(TaskResourceManager* owner, const TaskSwapChainInfo& info, ISwapChain*&& swapChain)
+        TaskSwapChain_::TaskSwapChain_(TaskResourceManager* owner, const TaskSwapChainInfo& info, ISwapChain*&& swapChain)
             : TaskResource_(owner), mSwapChain(swapChain), mInfo(info) {
         }
-        SHOCKGRAPH_API TaskSwapChain_::~TaskSwapChain_() {
-            Device()->Destroy(mSwapChain);
+        TaskSwapChain_::~TaskSwapChain_() {
+            Device()->DestroyDeferred(mSwapChain);
         }
-        SHOCKGRAPH_API TaskBlas_::TaskBlas_(TaskResourceManager* owner, const TaskBlasInfo& info, BlasId&& blas)
+        TaskBlas_::TaskBlas_(TaskResourceManager* owner, const TaskBlasInfo& info, BlasId&& blas)
             : TaskResource_(owner), mBlas(blas), mInfo(info) {
         }
-        SHOCKGRAPH_API TaskBlas_::~TaskBlas_() {
-            Device()->Destroy(mBlas);
+        TaskBlas_::~TaskBlas_() {
+            Device()->DestroyDeferred(mBlas);
         }
         PYRO_NODISCARD BlasAddress TaskBlas_::InstanceAddress() {
             return Device()->BlasInstanceAddress(mBlas);
         }
-        SHOCKGRAPH_API TaskTlas_::TaskTlas_(TaskResourceManager* owner, const TaskTlasInfo& info, TlasId&& tlas)
+        TaskTlas_::TaskTlas_(TaskResourceManager* owner, const TaskTlasInfo& info, TlasId&& tlas)
             : TaskResource_(owner), mTlas(tlas), mInfo(info) {
         }
-        SHOCKGRAPH_API TaskTlas_::~TaskTlas_() {
-            Device()->Destroy(mTlas);
+        TaskTlas_::~TaskTlas_() {
+            Device()->DestroyDeferred(mTlas);
         }
     } // namespace Renderer
 } // namespace PyroshockStudios

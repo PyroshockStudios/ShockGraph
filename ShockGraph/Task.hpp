@@ -89,6 +89,8 @@ namespace PyroshockStudios {
             SHOCKGRAPH_API void UseImage(const TaskImageDependencyInfo& info);
             SHOCKGRAPH_API void UseAccelerationStructure(const TaskAccelerationStructureDependencyInfo& info);
 
+            SHOCKGRAPH_API void Reset();
+
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskInfo& Info() const {
                 return mTaskInfo;
             }
@@ -167,11 +169,14 @@ namespace PyroshockStudios {
                 return TaskType::Graphics;
             }
 
+            // optional, by default it infers the render area from the render targets
+            SHOCKGRAPH_API void SetRect(const Rect2D& rect);
             SHOCKGRAPH_API void BindColorTarget(const BindColorTargetInfo& info);
             SHOCKGRAPH_API void BindDepthStencilTarget(const BindDepthStencilTargetInfo& info);
 
         private:
             struct Setup {
+                eastl::optional<Rect2D> rect = eastl::nullopt;
                 eastl::fixed_vector<BindColorTargetInfo, 8> colorTargets = {};
                 eastl::optional<BindDepthStencilTargetInfo> depthStencilTarget = {};
             };

@@ -26,6 +26,9 @@
 #include <libassert/assert.hpp>
 namespace PyroshockStudios {
     inline namespace Renderer {
+        SHOCKGRAPH_API void GraphicsTask::SetRect(const Rect2D& rect) {
+            mGraphicsSetupData.rect = rect;
+        }
 
         SHOCKGRAPH_API void GraphicsTask::BindColorTarget(const BindColorTargetInfo& info) {
             ASSERT(mGraphicsSetupData.colorTargets.size() < 8, "Trying to bind too many colour targets!");
@@ -49,7 +52,7 @@ namespace PyroshockStudios {
 
             mGraphicsSetupData.depthStencilTarget.emplace(info);
             Access access = {};
-            if (info.bReadOnly) {
+            if (info.bReadOnly && !info.bDepthStore && !info.bStencilStore /*NOTE: when doing store ops, it counts as a write!*/) {
                 access = AccessConsts::EARLY_FRAGMENT_TESTS_READ | AccessConsts::LATE_FRAGMENT_TESTS_READ;
             } else {
                 access = AccessConsts::EARLY_FRAGMENT_TESTS_READ_WRITE | AccessConsts::LATE_FRAGMENT_TESTS_READ_WRITE;
@@ -66,6 +69,13 @@ namespace PyroshockStudios {
         SHOCKGRAPH_API void GenericTask::UseAccelerationStructure(const TaskAccelerationStructureDependencyInfo& info) {
             mSetupData.accelerationStructureDepends.emplace_back(info);
         }
+        SHOCKGRAPH_API void GenericTask::Reset() {
+            mSetupData.bufferDepends.clear();
+            mSetupData.imageDepends.clear();
+            mSetupData.accelerationStructureDepends.clear();
+        }
+
+
         SHOCKGRAPH_API void CustomTask::ExecuteTask(TaskCommandList& commandList) {
             ExecuteTask(commandList.Internal());
         }

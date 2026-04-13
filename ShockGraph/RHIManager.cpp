@@ -93,13 +93,13 @@ namespace PyroshockStudios {
                         continue;
                     }
 
-                    Logger::Trace(mLogStream, "Found RHI " + attachable.info.guid.ToString() + " '" + eastl::string(attachable.info.name) + "' by '" + eastl::string(attachable.info.author) + "'");
+                    Logger::Trace(mLogStream, "Found RHI {{{}}} '{}' by '{}'", attachable.info.guid.ToString(), attachable.info.codename, attachable.info.author);
                     mAvailableRHIs.emplace_back(attachable);
                 }
             }
         }
 
-        SHOCKGRAPH_API bool RHIManager::AttachRHI(GUID rhiGUID, const RHICreateInfo& createInfo) {
+        SHOCKGRAPH_API bool RHIManager::AttachRHI(GUID rhiGUID, const RHICreateInfo& createInfo, u32 selectGpuVendorDeviceIdMask) {
             if (mAttachedRHIInfo.library != nullptr) {
                 Logger::Error(mLogStream, "RHI " + eastl::string(mAttachedRHIInfo.info.name) + " is currently attached! Application must be restarted to use a different RHI!.");
                 return false;
@@ -117,7 +117,20 @@ namespace PyroshockStudios {
                 Logger::Error(mLogStream, "Failed to attach RHI " + eastl::string(mAttachedRHIInfo.info.name) + "! RHIContext creation failed!");
                 return false;
             }
-            mRhiDevice = mRhiApi.loadedContext->CreateDevice({ .deviceIndex = RHI_DEVICE_INDEX_AUTO });
+
+            i32 selectDeviceIndex = -1;
+            if (selectGpuVendorDeviceIdMask != 0) {
+                i32 i = 0;
+                for (auto& device : mRhiApi.loadedContext->QueryPhysicalDevices()) {
+                    if (device.vendorID == ((selectGpuVendorDeviceIdMask & 0xFFFF0000) >> 16) && device.deviceID == ((selectGpuVendorDeviceIdMask & 0x0000FFFF))) {
+                        Logger::Info(mLogStream, "Found device {} in RHI, attaching device...", device.deviceName);
+                        selectDeviceIndex = i;
+                        break;
+                    }
+                    ++i;
+                }
+            }
+            mRhiDevice = mRhiApi.loadedContext->CreateDevice({ .deviceIndex = selectDeviceIndex });
 
             return true;
         }

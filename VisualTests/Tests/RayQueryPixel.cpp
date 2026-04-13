@@ -135,12 +135,17 @@ namespace VisualTests {
             { 1.f, 1.f, 4.f },
             { -1.f, 1.f, 4.f }
         };
-        memcpy(vertexBuffer->MappedMemory(), vertices, sizeof(vertices));
+        void* vtx_memory = vertexBuffer->MapMemory();
+        memcpy(vtx_memory, vertices, sizeof(vertices));
+         vertexBuffer->UnmapMemory(vtx_memory);
         const u32 indices[] = { 0, 1, 2, 0, 2, 3 };
-        memcpy(indexBuffer->MappedMemory(), indices, sizeof(indices));
+        void* idx_memory = indexBuffer->MapMemory();
+        memcpy(idx_memory, indices, sizeof(indices));
+        indexBuffer->UnmapMemory(idx_memory);
 
         // Instance buffer for TLAS
-        BlasInstanceData& instanceData = *reinterpret_cast<BlasInstanceData*>(instanceBuffer->MappedMemory());
+        void* inst_memory = instanceBuffer->MapMemory();
+        BlasInstanceData& instanceData = *reinterpret_cast<BlasInstanceData*>(inst_memory);
         instanceData.transform = Transform::IDENTITY;
         instanceData.instanceCustomIndex = 0;
         instanceData.mask = 0xFF;
@@ -148,7 +153,7 @@ namespace VisualTests {
         instanceData.flags = AccelerationStructureGeometryInstanceFlagBits::TRIANGLE_FACING_CULL_DISABLE |
                              AccelerationStructureGeometryInstanceFlagBits::FORCE_OPAQUE;
         instanceData.blasAddress = blas->InstanceAddress();
-
+        instanceBuffer->UnmapMemory(inst_memory);
         blasBuildInfo.geometries = geoArray;
         blasBuildInfo.dstBlas = blas->Internal();
         blasBuildInfo.scratchBuffer = blasScratchBuffer->Internal();

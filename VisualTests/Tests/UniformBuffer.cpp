@@ -130,9 +130,9 @@ namespace VisualTests {
                 },
                 [this](TaskCommandList& commands) {
                     static float rotation = 0.0f;
-                    auto* uboData = reinterpret_cast<GlobalUbo*>(ubo->MappedMemory());
+                    auto* uboData = reinterpret_cast<GlobalUbo*>(ubo->MapMemory());
                     uboData->colors = HueRotateThree(rotation);
-
+                    ubo->UnmapMemory(uboData);
                     commands.SetRasterPipeline(pipeline);
                     commands.SetUniformBufferView({
                         .slot = 0,

@@ -40,7 +40,7 @@ namespace VisualTests {
     ILogStream* gShaderSink = nullptr;
 
 
-    constexpr u32 FRAMES_IN_FLIGHT = 3;
+    constexpr u32 FRAMES_IN_FLIGHT = 2;
     constexpr u32 WIDTH = 1000;
     constexpr u32 HEIGHT = 700;
     constexpr bool USE_VSYNC = true;

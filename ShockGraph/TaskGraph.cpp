@@ -289,19 +289,23 @@ namespace PyroshockStudios {
                 }
                 renderPassInfo.depthStencilAttachment.emplace(eastl::move(attachmentInfo));
             }
-            // FIXME stencil buffer
-            Extent3D extent;
-            if (!renderPassInfo.colorAttachments.empty()) {
-                extent = mDevice->GetImageInfo(mDevice->GetRenderTargetInfo(renderPassInfo.colorAttachments[0].target).image).size;
-            } else if (renderPassInfo.depthStencilAttachment.has_value()) {
-                extent = mDevice->GetImageInfo(mDevice->GetRenderTargetInfo(renderPassInfo.depthStencilAttachment->target).image).size;
+            if (task->mGraphicsSetupData.rect.has_value()) {
+                renderPassInfo.renderArea = task->mGraphicsSetupData.rect.value();
             } else {
-                ASSERT(false, "NO render targets defined!");
+                // FIXME stencil buffer
+                Extent3D extent;
+                if (!renderPassInfo.colorAttachments.empty()) {
+                    extent = mDevice->GetImageInfo(mDevice->GetRenderTargetInfo(renderPassInfo.colorAttachments[0].target).image).size;
+                } else if (renderPassInfo.depthStencilAttachment.has_value()) {
+                    extent = mDevice->GetImageInfo(mDevice->GetRenderTargetInfo(renderPassInfo.depthStencilAttachment->target).image).size;
+                } else {
+                    ASSERT(false, "NO render targets defined!");
+                }
+                renderPassInfo.renderArea = {
+                    .width = static_cast<i32>(extent.width),
+                    .height = static_cast<i32>(extent.height),
+                };
             }
-            renderPassInfo.renderArea = {
-                .width = static_cast<i32>(extent.width),
-                .height = static_cast<i32>(extent.height),
-            };
             mAllTaskRefs.push_back(task);
             mTasks.push_back(new GraphicsTaskExecute(task, eastl::move(renderPassInfo)));
         }
@@ -387,27 +391,16 @@ namespace PyroshockStudios {
                 delete task;
             }
             if (!mTimestampQueryPools.empty()) {
-                // FIXME: remove this wait idle once we have a command list DestroyDeferred function for this!
-                mDevice->WaitIdle();
-                for (i32 i = 0; i < mFramesInFlight; ++i) {
-                    mDevice->Destroy(mTimestampQueryPools[i]);
+                for (u32 i = 0; i < mFramesInFlight; ++i) {
+                    mDevice->DestroyDeferred(mTimestampQueryPools[i]);
                 }
                 mTimestampQueryPools.clear();
             }
             mSwapChains.clear();
             mInternalTasks.clear();
-            // Make sure to reset tasks as these may require setup again!
-            for (auto& task : mTasks) {
-                auto& setupData = task->GetTask()->mSetupData;
-                setupData.accelerationStructureDepends.clear();
-                setupData.bufferDepends.clear();
-                setupData.imageDepends.clear();
-            }
             mTasks.clear();
             mBatches.clear();
             mAllTaskRefs.clear();
-            mLastKnownBufferLayouts.clear();
-            mLastKnownImageLayouts.clear();
             bBaked = false;
         }
         SHOCKGRAPH_API void TaskGraph::Build() {
@@ -423,7 +416,7 @@ namespace PyroshockStudios {
             };
 
             eastl::vector<ResourceState> currentResources = {};
-            currentResources.resize(mResourceManager->mResources.size());
+            currentResources.resize(mResourceManager->mResources.Size());
 
             eastl::vector<TaskState> currentTasks = {};
             currentTasks.resize(mTasks.size());
@@ -481,7 +474,7 @@ namespace PyroshockStudios {
                     }
                 }
 
-                taskQueue.erase(eastl::remove_if(taskQueue.begin(), taskQueue.end(), [&](int x) {
+                taskQueue.erase(eastl::remove_if(taskQueue.begin(), taskQueue.end(), [&](TaskId x) {
                     return eastl::find(tasksWithoutParents.begin(), tasksWithoutParents.end(), x) != tasksWithoutParents.end();
                 }),
                     taskQueue.end());
@@ -571,9 +564,9 @@ namespace PyroshockStudios {
 
                 TaskType nextBatchFirstType = TaskType::None;
                 if (i + 1 < mBatches.size()) {
-                    for (TaskId id : mBatches[i + 1].taskIds) {
-                        nextBatchFirstType = mTasks[id]->GetTask()->GetType();
-                        break;
+                    if (!mBatches[i + 1].taskIds.empty()) {
+                        TaskId firstId = mBatches[i + 1].taskIds.front();
+                        nextBatchFirstType = mTasks[firstId]->GetTask()->GetType();
                     }
                 }
 
@@ -607,16 +600,16 @@ namespace PyroshockStudios {
             }
 
             Logger::Trace(mLogStream, "Injecting timestamp profilers");
-            for (i32 i = 0; i < mFramesInFlight; ++i) {
+            for (u32 i = 0; i < mFramesInFlight; ++i) {
                 mTimestampQueryPools.push_back(mDevice->CreateTimestampQueryPool({
                     .queryCount = static_cast<u32>(mTasks.size() * 2 + 4),
                     .name = "Timestamp query pool FiF=" + eastl::to_string(i),
                 }));
             }
-            mBaseGraphTimestampIndex = mTasks.size() * 2;
-            mBaseMiscFlushesTimestampIndex = mTasks.size() * 2 + 2;
-            for (i32 i = 0; i < mTasks.size(); ++i) {
-                mTasks[i]->mBaseTimestampIndex = 2 * i;
+            mBaseGraphTimestampIndex = static_cast<u32>(mTasks.size() * 2);
+            mBaseMiscFlushesTimestampIndex = static_cast<u32>(mTasks.size() * 2 + 2);
+            for (usize i = 0; i < mTasks.size(); ++i) {
+                mTasks[i]->mBaseTimestampIndex = static_cast<u32>(2 * i);
             }
             bBaked = true;
             Logger::Trace(mLogStream, "Rebuilt task graph, {} task objects, {} batch objects", mTasks.size(), mBatches.size());
@@ -652,10 +645,20 @@ namespace PyroshockStudios {
             mDevice->PresentQueue({ .queue = mQueue, .swapChains = swap_chains });
             mFrameIndex = (mFrameIndex + 1) % mFramesInFlight;
             bInFrame = false;
+            mPendingCommands.clear();
+            // update frames in flight!
+            {
+                std::lock_guard l(mResourceManager->mDynamicBuffers.GetLock());
+                auto& vec = mResourceManager->mDynamicBuffers.UnderlyingVector();
+                for (const auto& bufferCopy : vec) {
+                    bufferCopy->mCurrentBufferInFlight = mFrameIndex;
+                }
+            }
+
         }
         SHOCKGRAPH_API void TaskGraph::Execute() {
             ASSERT(bInFrame, "Do not call Execute() outside of a frame!");
-
+            ASSERT(mPendingCommands.empty(), "Command buffer should be null!");
             ICommandBuffer* commandBuffer = mQueue->GetCommandBuffer({
                 .name = mQueue->Info().name + "'s Task Graph Commands, #" + eastl::to_string(mFrameIndex),
             });
@@ -686,30 +689,30 @@ namespace PyroshockStudios {
                         .queryIndex = mBaseMiscFlushesTimestampIndex + 1,
                     });
                 } // FLUSHES END
-                TaskCommandList wrapper{};
-                wrapper.mCommandBuffer = commandBuffer;
+                TaskCommandList wrapper{ *mDevice, *commandBuffer };
                 u32 batchIndex = 0;
+                auto& states = mResourceManager->GetResourceStateMap();
                 for (Batch& batch : mBatches) {
                     commandBuffer->BeginLabel({ .labelColor = LabelColor::BLACK,
                         .name = "Sync Barriers Batch #" + eastl::to_string(batchIndex) });
 
                     for (auto barrier : batch.barriers.buffer) {
-                        auto lastKnownLayout = mLastKnownBufferLayouts.find(barrier.buffer);
-                        if (lastKnownLayout != mLastKnownBufferLayouts.end()) {
+                        auto lastKnownLayout = states.mLastKnownBufferLayouts.find(barrier.buffer);
+                        if (lastKnownLayout != states.mLastKnownBufferLayouts.end()) {
                             barrier.srcLayout = lastKnownLayout->second;
                             lastKnownLayout->second = barrier.dstLayout;
                         } else {
-                            mLastKnownBufferLayouts[barrier.buffer] = barrier.dstLayout;
+                            states.mLastKnownBufferLayouts[barrier.buffer] = barrier.dstLayout;
                         }
                         commandBuffer->BufferBarrier(barrier);
                     }
                     for (auto barrier : batch.barriers.image) {
-                        auto lastKnownLayout = mLastKnownImageLayouts.find(barrier.image);
-                        if (lastKnownLayout != mLastKnownImageLayouts.end()) {
+                        auto lastKnownLayout = states.mLastKnownImageLayouts.find(barrier.image);
+                        if (lastKnownLayout != states.mLastKnownImageLayouts.end()) {
                             barrier.srcLayout = lastKnownLayout->second;
                             lastKnownLayout->second = barrier.dstLayout;
                         } else {
-                            mLastKnownImageLayouts[barrier.image] = barrier.dstLayout;
+                            states.mLastKnownImageLayouts[barrier.image] = barrier.dstLayout;
                         }
                         commandBuffer->ImageBarrier(barrier);
                     }
@@ -720,6 +723,8 @@ namespace PyroshockStudios {
                     commandBuffer->EndLabel();
                     for (TaskId taskIndex : batch.taskIds) {
                         TaskExecute* task = mTasks[taskIndex];
+                        // printf("Rendering: %s\n", task->GetTask()->Info().name.c_str());
+
                         task->mTimestampPool = mTimestampQueryPools[mFrameIndex];
                         wrapper.mCurrBindPoint = task->GetTask()->GetBindPoint();
 
@@ -768,10 +773,19 @@ namespace PyroshockStudios {
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 
+        SHOCKGRAPH_API u64 TaskGraph::GetCpuTimelineValue() const {
+            return mCpuTimelineIndex;
+        }
+        SHOCKGRAPH_API IFence* TaskGraph::GetTimelineFence() {
+            return mGpuFrameTimeline;
+        }
+
         void TaskGraph::FlushStagingBuffers(ICommandBuffer* commandBuffer) {
+            auto& states = mResourceManager->GetResourceStateMap();
             commandBuffer->BeginLabel({ .labelColor = LabelColor::BLUE,
                 .name = "Flush staging buffers" });
-            for (auto& uploadPair : mResourceManager->mPendingStagingUploads) {
+            while (!mResourceManager->mPendingStagingUploads.Empty()) {
+                auto uploadPair = mResourceManager->mPendingStagingUploads.PopBack();
                 commandBuffer->BufferBarrier({
                     .buffer = uploadPair.srcBuffer,
                     .srcAccess = AccessConsts::HOST_WRITE,
@@ -800,7 +814,7 @@ namespace PyroshockStudios {
                             .srcLayout = BufferLayout::TransferDst,
                             .dstLayout = stagingUpload.dstBufferLayout,
                         });
-                        mLastKnownBufferLayouts[stagingUpload.dstBuffer] = stagingUpload.dstBufferLayout;
+                        states.mLastKnownBufferLayouts[stagingUpload.dstBuffer] = stagingUpload.dstBufferLayout;
                     }
                     if (stagingUpload.dstImage) {
                         commandBuffer->ImageBarrier({
@@ -823,20 +837,22 @@ namespace PyroshockStudios {
                             .srcLayout = ImageLayout::TransferDst,
                             .dstLayout = stagingUpload.dstImageLayout,
                         });
-                        mLastKnownImageLayouts[stagingUpload.dstImage] = stagingUpload.dstImageLayout;
+                        states.mLastKnownImageLayouts[stagingUpload.dstImage] = stagingUpload.dstImageLayout;
                     }
                 }
                 mDevice->Destroy(uploadPair.srcBuffer, true);
             }
-            mResourceManager->mPendingStagingUploads.clear();
 
             commandBuffer->EndLabel();
         }
         void TaskGraph::FlushDynamicBuffers(ICommandBuffer* commandBuffer) {
+            auto& states = mResourceManager->GetResourceStateMap();
             commandBuffer->BeginLabel({ .labelColor = LabelColor::BLUE,
                 .name = "Flush dynamic buffers" });
-            for (const auto& bufferCopy : mResourceManager->mDynamicBuffers) {
-                bufferCopy->mCurrentBufferInFlight = mFrameIndex;
+
+            std::lock_guard l(mResourceManager->mDynamicBuffers.GetLock());
+            auto& vec = mResourceManager->mDynamicBuffers.UnderlyingVector();
+            for (const auto& bufferCopy : vec) {
                 if (bufferCopy->Info().mode == TaskBufferMode::HostDynamic || bufferCopy->Info().mode == TaskBufferMode::Readback) {
                     // This is purely stored on host, no copies needed
                     bufferCopy->mBuffer = bufferCopy->InternalInFlightBuffer(mFrameIndex);
@@ -866,12 +882,12 @@ namespace PyroshockStudios {
                     */
                     commandBuffer->BufferBarrier({
                         .buffer = bufferCopy->Internal(),
-                        .srcAccess = AccessConsts::TRANSFER_READ,
+                        .srcAccess = AccessConsts::TRANSFER_WRITE,
                         .dstAccess = AccessConsts::READ,
                         .srcLayout = BufferLayout::TransferDst,
                         .dstLayout = BufferLayout::ReadOnly,
                     });
-                    mLastKnownBufferLayouts[bufferCopy->Internal()] = BufferLayout::ReadOnly;
+                    states.mLastKnownBufferLayouts[bufferCopy->Internal()] = BufferLayout::ReadOnly;
                 }
             }
             commandBuffer->EndLabel();

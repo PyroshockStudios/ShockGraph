@@ -40,6 +40,7 @@ target_link_libraries(ShockGraph PUBLIC PyroRHI::PyroRHI)
 if(SHOCKGRAPH_USE_PYRO_PLATFORM)
 target_link_libraries(ShockGraph PUBLIC PyroPlatform::PyroPlatform)
 endif()
+target_compile_options(ShockGraph PRIVATE ${S3D_COMPILER_WARNINGS})
 
 
 if(PYRO_RHI_BUILD_VULKAN)

@@ -127,8 +127,10 @@ namespace PyroshockStudios {
 
         class TaskCommandList : DeleteCopy, DeleteMove {
         public:
+            TaskCommandList(IDevice& owningDevice, ICommandBuffer& commandBuffer)
+                : mOwningDevice(owningDevice), mCommandBuffer(commandBuffer) {}
             PYRO_FORCEINLINE void CopyBuffer(const TaskCopyBufferInfo& info) {
-                mCommandBuffer->CopyBufferToBuffer({
+                mCommandBuffer.CopyBufferToBuffer({
                     .srcBuffer = info.srcBuffer->Internal(),
                     .dstBuffer = info.dstBuffer->Internal(),
                     .srcOffset = info.srcOffset,
@@ -137,7 +139,7 @@ namespace PyroshockStudios {
                 });
             }
             PYRO_FORCEINLINE void CopyImage(const TaskCopyImageInfo& info) {
-                mCommandBuffer->CopyImageToImage({
+                mCommandBuffer.CopyImageToImage({
                     .srcImage = info.srcImage->Internal(),
                     .dstImage = info.dstImage->Internal(),
                     .srcImageSlice = info.srcImageSlice,
@@ -147,10 +149,10 @@ namespace PyroshockStudios {
                 });
             }
             PYRO_FORCEINLINE void ClearUnorderedAccessViw(const TaskClearUnorderedAccessViewInfo& info) {
-                mCommandBuffer->ClearUnorderedAccessView(info);
+                mCommandBuffer.ClearUnorderedAccessView(info);
             }
             PYRO_FORCEINLINE void UpdateBuffer(const TaskUpdateBufferInfo& info) {
-                mCommandBuffer->UpdateBuffer({
+                mCommandBuffer.UpdateBuffer({
                     .buffer = info.buffer->Internal(),
                     .region = info.region,
                     .data = info.data,
@@ -160,48 +162,48 @@ namespace PyroshockStudios {
             template <StandardLayoutConcept T>
             PYRO_FORCEINLINE void PushConstant(const T& constant, const u32 offset = 0) {
                 static_assert(sizeof(T) <= Limits::MAX_PUSH_CONSTANT_SIZE, "Push constant is too large! Please use a uniform buffer instead!");
-                mCommandBuffer->PushConstant(constant, offset);
+                mCommandBuffer.PushConstant(constant, offset);
             }
 
             PYRO_FORCEINLINE void SetUniformBufferView(const TaskSetUniformBufferViewInfo& info) {
-                mCommandBuffer->SetUniformBufferView({
+                mCommandBuffer.SetUniformBufferView({
                     .slot = info.slot,
                     .buffer = info.buffer->Internal(),
                     .bindPoint = mCurrBindPoint,
                 });
             }
             PYRO_FORCEINLINE void SetUnorderedAccessView(const TaskSetUnorderedAccessViewInfo& info) {
-                mCommandBuffer->SetUnorderedAccessView({
+                mCommandBuffer.SetUnorderedAccessView({
                     .slot = info.slot,
                     .view = info.view,
                     .bindPoint = mCurrBindPoint,
                 });
             }
-            PYRO_FORCEINLINE void SetRasterPipeline(TaskRasterPipelineRef pipeline) {
+            PYRO_FORCEINLINE void SetRasterPipeline(TaskRasterPipeline pipeline) {
                 RefreshPipelineIf(pipeline);
-                mCommandBuffer->SetRasterPipeline(pipeline->Internal());
+                mCommandBuffer.SetRasterPipeline(pipeline->Internal());
             }
-            PYRO_FORCEINLINE void SetComputePipeline(TaskComputePipelineRef pipeline) {
+            PYRO_FORCEINLINE void SetComputePipeline(TaskComputePipeline pipeline) {
                 RefreshPipelineIf(pipeline);
-                mCommandBuffer->SetComputePipeline(pipeline->Internal());
+                mCommandBuffer.SetComputePipeline(pipeline->Internal());
             }
 
             PYRO_FORCEINLINE void SetViewport(const ViewportInfo& info) {
-                mCommandBuffer->SetViewport(info);
+                mCommandBuffer.SetViewport(info);
             }
             PYRO_FORCEINLINE void SetScissor(const Rect2D& info) {
-                mCommandBuffer->SetScissor(info);
+                mCommandBuffer.SetScissor(info);
             }
 
             PYRO_FORCEINLINE void SetVertexBuffer(const TaskSetVertexBufferInfo& info) {
-                mCommandBuffer->SetVertexBuffer({
+                mCommandBuffer.SetVertexBuffer({
                     .slot = info.slot,
                     .buffer = info.buffer->Internal(),
                     .offset = info.offset,
                 });
             }
             PYRO_FORCEINLINE void SetIndexBuffer(const TaskSetIndexBufferInfo& info) {
-                mCommandBuffer->SetIndexBuffer({
+                mCommandBuffer.SetIndexBuffer({
                     .buffer = info.buffer->Internal(),
                     .offset = info.offset,
                     .indexType = info.indexType,
@@ -209,13 +211,13 @@ namespace PyroshockStudios {
             }
 
             PYRO_FORCEINLINE void Draw(const TaskDrawInfo& info) {
-                mCommandBuffer->Draw(info);
+                mCommandBuffer.Draw(info);
             }
             PYRO_FORCEINLINE void DrawIndexed(const TaskDrawIndexedInfo& info) {
-                mCommandBuffer->DrawIndexed(info);
+                mCommandBuffer.DrawIndexed(info);
             }
             PYRO_FORCEINLINE void DrawIndirect(const TaskDrawIndirectInfo& info) {
-                mCommandBuffer->DrawIndirect({
+                mCommandBuffer.DrawIndirect({
                     .indirectBuffer = info.indirectBuffer->Internal(),
                     .indirectBufferOffset = info.indirectBufferOffset,
                     .drawCount = info.drawCount,
@@ -223,7 +225,7 @@ namespace PyroshockStudios {
                 });
             }
             PYRO_FORCEINLINE void DrawIndexedIndirect(const TaskDrawIndexedIndirectInfo& info) {
-                mCommandBuffer->DrawIndexedIndirect({
+                mCommandBuffer.DrawIndexedIndirect({
                     .indirectBuffer = info.indirectBuffer->Internal(),
                     .indirectBufferOffset = info.indirectBufferOffset,
                     .drawCount = info.drawCount,
@@ -232,10 +234,10 @@ namespace PyroshockStudios {
             }
 
             PYRO_FORCEINLINE void Dispatch(const TaskDispatchInfo& info) {
-                mCommandBuffer->Dispatch(info);
+                mCommandBuffer.Dispatch(info);
             }
             PYRO_FORCEINLINE void DispatchIndirect(const TaskDispatchIndirectInfo& info) {
-                mCommandBuffer->DrawIndexedIndirect({
+                mCommandBuffer.DrawIndexedIndirect({
                     .indirectBuffer = info.indirectBuffer->Internal(),
                     .indirectBufferOffset = info.indirectBufferOffset,
                 });
@@ -269,14 +271,14 @@ namespace PyroshockStudios {
                     blasBuildInfos.push_back(out);
                 }
 
-                mCommandBuffer->BuildAccelerationStructures({
+                mCommandBuffer.BuildAccelerationStructures({
                     .tlasBuildInfos = tlasBuildInfos,
                     .blasBuildInfos = blasBuildInfos,
                 });
             }
 
             PYRO_FORCEINLINE ICommandBuffer* Internal() {
-                return mCommandBuffer;
+                return &mCommandBuffer;
             }
 
         private:
@@ -285,13 +287,13 @@ namespace PyroshockStudios {
                 if (!pipeline->mbDirty)
                     return;
                 pipeline->mbDirty = false;
-                mOwningDevice->Destroy(pipeline->mPipeline, true);
+                mOwningDevice.Destroy(pipeline->mPipeline, true);
                 pipeline->Recreate();
             }
 
             PipelineBindPoint mCurrBindPoint = {};
-            ICommandBuffer* mCommandBuffer = nullptr;
-            IDevice* mOwningDevice = nullptr;
+            ICommandBuffer& mCommandBuffer;
+            IDevice& mOwningDevice;
 
             friend class TaskGraph;
         };

@@ -23,8 +23,11 @@
 #pragma once
 #include "Resources.hpp"
 
+#include <EASTL/hash_map.h>
+#include <EASTL/utility.h>
 #include <PyroCommon/LoggerInterface.hpp>
 #include <PyroRHI/Api/Forward.hpp>
+#include <PyroRHI/Common/AtomicVector.hpp>
 #include <ShockGraph/Core.hpp>
 
 namespace PyroshockStudios {
@@ -53,6 +56,12 @@ namespace PyroshockStudios {
         using TaskSamplerInfo = SamplerInfo;
         class TaskResourceManager : public ILoggerAware, DeleteCopy, DeleteMove {
         public:
+            // HACK: Pre-dx12 enhanced barriers, cannot assume COMMON->anything as a valid transition, so we must track.
+            struct ResourceStateMap {
+                eastl::hash_map<Buffer, BufferLayout> mLastKnownBufferLayouts = {};
+                eastl::hash_map<Image, ImageLayout> mLastKnownImageLayouts = {};
+            };
+
             SHOCKGRAPH_API TaskResourceManager(const TaskResourceManagerInfo& info);
             SHOCKGRAPH_API ~TaskResourceManager();
 
@@ -66,6 +75,9 @@ namespace PyroshockStudios {
 
             PYRO_NODISCARD SHOCKGRAPH_API TaskColorTarget CreateColorTarget(const TaskColorTargetInfo& info);
             PYRO_NODISCARD SHOCKGRAPH_API TaskDepthStencilTarget CreateDepthStencilTarget(const TaskDepthStencilTargetInfo& info);
+
+            PYRO_NODISCARD SHOCKGRAPH_API eastl::pair<TaskColorTarget, TaskImage> CreateColorTargetAndImage(const TaskImageInfo& info);
+            PYRO_NODISCARD SHOCKGRAPH_API eastl::pair<TaskDepthStencilTarget, TaskImage> CreateDepthStencilTargetAndImage(const TaskImageInfo& info, bool bDepth, bool bStencil);
 
             PYRO_NODISCARD SHOCKGRAPH_API ShaderResourceId CreateShaderResourceView(const TaskBufferResourceInfo& info);
             PYRO_NODISCARD SHOCKGRAPH_API ShaderResourceId CreateShaderResourceView(const TaskImageResourceInfo& info);
@@ -98,6 +110,8 @@ namespace PyroshockStudios {
             }
 
         private:
+            ResourceStateMap& GetResourceStateMap();
+
             void RegisterResource(TaskResource_* resource);
             void ReleaseResource(TaskResource_* resource);
             void ReleaseBufferResource(TaskBuffer_* resource);
@@ -105,8 +119,8 @@ namespace PyroshockStudios {
             friend struct TaskBuffer_;
             friend struct TaskImage_;
 
-            eastl::vector<u32> mTombstones = {};
-            eastl::vector<TaskResource_*> mResources = {};
+            Common::AtomicVector<u32> mTombstones = {};
+            Common::AtomicVector<TaskResource_*> mResources = {};
 
             struct StagingUploadData {
                 Buffer dstBuffer = {};
@@ -120,8 +134,13 @@ namespace PyroshockStudios {
                 Buffer srcBuffer = {};
                 eastl::vector<StagingUploadData> uploads = {};
             };
-            eastl::vector<StagingUploadPair> mPendingStagingUploads = {};
-            eastl::vector<TaskBuffer_*> mDynamicBuffers = {};
+            //struct MappedMemoryFlush {
+            //    Buffer dstBuffer = {};
+            //    BufferLayout dstBufferLayout = {};
+            //};
+            Common::AtomicVector<StagingUploadPair> mPendingStagingUploads = {};
+            //Common::AtomicVector<StagingUploadPair> mPendingMappedMemoryFlushes = {};
+            Common::AtomicVector<TaskBuffer_*> mDynamicBuffers = {};
 
             IDevice* mDevice = nullptr;
             RHIContext* mRHI = nullptr;

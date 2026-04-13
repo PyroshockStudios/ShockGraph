@@ -23,8 +23,6 @@
 #pragma once
 
 #ifdef SHOCKGRAPH_USE_PYRO_PLATFORM
-#include <EASTL/string.h>
-#include <EASTL/unique_ptr.h>
 #include <EASTL/vector.h>
 
 #include <PyroCommon/Core.hpp>
@@ -33,7 +31,6 @@
 #include <PyroRHI/Api/Forward.hpp>
 #include <PyroRHI/Exports.hpp>
 #include <PyroRHI/Info.hpp>
-#include <PyroRHI/Shader/Forward.hpp>
 #include <ShockGraph/Core.hpp>
 
 namespace PyroshockStudios {
@@ -53,7 +50,7 @@ namespace PyroshockStudios {
             SHOCKGRAPH_API void DiscoverAvailableRHIs();
 
             // Returns true if the guid exists, successfully created context, and there is no currently attached RHI
-            SHOCKGRAPH_API bool AttachRHI(GUID rhiGUID, const RHICreateInfo& createInfo);
+            SHOCKGRAPH_API bool AttachRHI(GUID rhiGUID, const RHICreateInfo& createInfo, u32 selectGpuVendorDeviceIdMask = 0);
             SHOCKGRAPH_API const AttachableRHIInfo& GetAttachedRHIInfo();
             SHOCKGRAPH_API RHIContext* GetAttachedRHI();
             SHOCKGRAPH_API IDevice* GetRHIDevice();

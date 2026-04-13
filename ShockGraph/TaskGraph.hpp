@@ -43,6 +43,57 @@ namespace PyroshockStudios {
             Rect2D srcRect = {};
             Rect2D dstRect = {};
         };
+        struct TaskDebugBufferBarrier {
+            eastl::string name;
+            u64 handle;
+            u64 offset;
+            u64 size;
+            eastl::string srcLayout;
+            eastl::string dstLayout;
+        };
+        struct TaskDebugImageBarrier {
+            eastl::string name;
+            u64 handle;
+            u32 baseMipLevel;
+            u32 levelCount;
+            u32 baseArrayLayer;
+            u32 layerCount;
+            eastl::string srcLayout;
+            eastl::string dstLayout;
+        };
+
+        struct TaskDebugASBarrier {
+            eastl::string name;
+            u64 handle;
+            eastl::string type; // "BLAS" or "TLAS"
+        };
+        struct TaskDebugEdges {
+            eastl::vector<TaskId> dependencies; // Parents (Tasks this task waits on)
+            eastl::vector<TaskId> dependents;   // Children (Tasks waiting on this task)
+        };
+
+        struct TaskDebugNode {
+            TaskId id;
+            eastl::string name;
+            f64 timingNs = 0.0;
+
+            TaskDebugEdges edges;
+        };
+
+        struct TaskDebugBatch {
+            u32 batchIndex;
+            eastl::vector<TaskDebugBufferBarrier> bufferBarriers;
+            eastl::vector<TaskDebugImageBarrier> imageBarriers;
+            eastl::vector<TaskDebugASBarrier> asBarriers;
+            eastl::vector<TaskId> tasks;
+        };
+
+        struct TaskGraphDebugInfo {
+            eastl::vector<TaskDebugBatch> batches;
+            eastl::hash_map<TaskId, TaskDebugNode> tasks;
+
+            eastl::vector<TaskId> rootTasks;
+        };
         class TaskGraph : public ILoggerAware, DeleteCopy, DeleteMove {
         public:
             SHOCKGRAPH_API TaskGraph(const TaskGraphInfo& info);
@@ -62,8 +113,6 @@ namespace PyroshockStudios {
             SHOCKGRAPH_API void EndFrame();
             SHOCKGRAPH_API void Execute();
 
-            PYRO_NODISCARD SHOCKGRAPH_API eastl::string ToString();
-
             SHOCKGRAPH_API void InjectLogger(ILogStream* stream) override {
                 mLogStream = stream;
             }
@@ -73,17 +122,17 @@ namespace PyroshockStudios {
             /**
              * @brief Returns the GPU timings in nanoseconds of a specific task.
              */
-            PYRO_NODISCARD SHOCKGRAPH_API f64 GetTaskTimingsNs(GenericTask* task);
+            PYRO_NODISCARD SHOCKGRAPH_API f64 GetTaskTimingsNs(GenericTask* task) const;
             /**
              * @brief Returns the GPU timings in nanoseconds of the entire task graph.
              */
-            PYRO_NODISCARD SHOCKGRAPH_API f64 GetGraphTimingsNs();
+            PYRO_NODISCARD SHOCKGRAPH_API f64 GetGraphTimingsNs() const;
             /**
              * @brief Returns the GPU timings in nanoseconds of the per-frame flushes
              * such as staging buffers, dynamic buffers. This includes both buffer copies
              * and buffer/image barriers.
              */
-            PYRO_NODISCARD SHOCKGRAPH_API f64 GetMiscFlushesTimingsNs();
+            PYRO_NODISCARD SHOCKGRAPH_API f64 GetMiscFlushesTimingsNs() const;
 
             /**
              * @brief Returns the current timeline value tracked on the CPU.
@@ -95,6 +144,10 @@ namespace PyroshockStudios {
              * @brief Returns the GPU timeline fence. You may wait for this, but do NOT modify timeline values!
              */
             PYRO_NODISCARD SHOCKGRAPH_API IFence* GetTimelineFence();
+
+
+            PYRO_NODISCARD SHOCKGRAPH_API eastl::string ToString() const;
+            SHOCKGRAPH_API TaskGraphDebugInfo GetDebugInfo() const;
 
         private:
             void FlushStagingBuffers(ICommandBuffer* commandBuffer);
@@ -118,6 +171,7 @@ namespace PyroshockStudios {
 
             eastl::vector<eastl::unique_ptr<GenericTask>> mInternalTasks = {};
             eastl::vector<Batch> mBatches = {};
+            eastl::vector<TaskDebugEdges> mTaskEdges = {};
 
             eastl::vector<TaskExecute*> mTasks = {};
             eastl::vector<TaskSwapChain> mSwapChains = {};

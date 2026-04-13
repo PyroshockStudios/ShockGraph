@@ -24,8 +24,8 @@
 #include <PyroCommon/Logger.hpp>
 #include <PyroRHI/Api/ICommandQueue.hpp>
 #include <PyroRHI/Api/IDevice.hpp>
-#include <PyroRHI/Api/ToString.hpp>
 #include <PyroRHI/Context.hpp>
+#include <PyroRHI/ToString.hpp>
 
 #include <EASTL/algorithm.h>
 #include <EASTL/hash_set.h>
@@ -226,20 +226,20 @@ namespace PyroshockStudios {
             ~TransferTaskExecute() = default;
         };
 
-        SHOCKGRAPH_API TaskGraph::TaskGraph(const TaskGraphInfo& info)
+        TaskGraph::TaskGraph(const TaskGraphInfo& info)
             : mDevice(info.resourceManager->mDevice), mQueue(mDevice->GetPresentQueue()), mResourceManager(info.resourceManager),
               mFramesInFlight(info.resourceManager->mFramesInFlight) {
 
             mGpuFrameTimeline = mDevice->CreateFence({ .name = "Task Graph GPU Timeline" });
         }
-        SHOCKGRAPH_API TaskGraph::~TaskGraph() {
+        TaskGraph::~TaskGraph() {
             mDevice->WaitIdle();
             // cleanup resources
             this->Reset();
             mDevice->Destroy(mGpuFrameTimeline);
         }
 
-        SHOCKGRAPH_API void TaskGraph::AddTask(GraphicsTask* task) {
+        void TaskGraph::AddTask(GraphicsTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
@@ -309,21 +309,21 @@ namespace PyroshockStudios {
             mAllTaskRefs.push_back(task);
             mTasks.push_back(new GraphicsTaskExecute(task, eastl::move(renderPassInfo)));
         }
-        SHOCKGRAPH_API void TaskGraph::AddTask(ComputeTask* task) {
+        void TaskGraph::AddTask(ComputeTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
             mAllTaskRefs.push_back(task);
             mTasks.push_back(new ComputeTaskExecute(task));
         }
-        SHOCKGRAPH_API void TaskGraph::AddTask(TransferTask* task) {
+        void TaskGraph::AddTask(TransferTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
             mAllTaskRefs.push_back(task);
             mTasks.push_back(new TransferTaskExecute(task));
         }
-        SHOCKGRAPH_API void TaskGraph::AddTask(CustomTask* task) {
+        void TaskGraph::AddTask(CustomTask* task) {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
@@ -331,7 +331,7 @@ namespace PyroshockStudios {
             mTasks.push_back(new TaskExecute(task));
         }
 
-        SHOCKGRAPH_API void TaskGraph::AddSwapChainWrite(const TaskSwapChainWriteInfo& writeInfo) {
+        void TaskGraph::AddSwapChainWrite(const TaskSwapChainWriteInfo& writeInfo) {
             ASSERT(writeInfo.swapChain);
             ASSERT(writeInfo.image);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
@@ -386,7 +386,7 @@ namespace PyroshockStudios {
             mTasks.push_back(new TaskExecute(mInternalTasks.back().get()));
         }
 
-        SHOCKGRAPH_API void TaskGraph::Reset() {
+        void TaskGraph::Reset() {
             for (TaskExecute* task : mTasks) {
                 delete task;
             }
@@ -401,9 +401,10 @@ namespace PyroshockStudios {
             mTasks.clear();
             mBatches.clear();
             mAllTaskRefs.clear();
+            mTaskEdges.clear();
             bBaked = false;
         }
-        SHOCKGRAPH_API void TaskGraph::Build() {
+        void TaskGraph::Build() {
             Logger::Trace(mLogStream, "Rebuilding tasks");
 
             struct ResourceState {
@@ -421,25 +422,43 @@ namespace PyroshockStudios {
             eastl::vector<TaskState> currentTasks = {};
             currentTasks.resize(mTasks.size());
 
+            // Prepare permanent debug edges
+            mTaskEdges.clear();
+            mTaskEdges.resize(mTasks.size());
+
+            auto addDependency = [&](TaskId childId, TaskId parentId) {
+                currentTasks[childId].parents.push_back(parentId);
+
+                auto& debugDependencies = mTaskEdges[childId].dependencies;
+                if (eastl::find(debugDependencies.begin(), debugDependencies.end(), parentId) == debugDependencies.end()) {
+                    debugDependencies.push_back(parentId);
+
+                    mTaskEdges[parentId].dependents.push_back(childId);
+                }
+            };
+
             // finds which tasks depends on each other
             for (u32 taskIndex = 0; taskIndex < mTasks.size(); taskIndex++) {
                 TaskExecute*& task = mTasks[taskIndex];
+
                 for (const auto& bufferDep : task->GetTask()->mSetupData.bufferDepends) {
                     u32 dependencyIndex = bufferDep.buffer->GetId();
                     ResourceState& depedencyState = currentResources[dependencyIndex];
                     if (depedencyState.lastTaskId.has_value()) {
-                        currentTasks[taskIndex].parents.push_back(depedencyState.lastTaskId.value());
+                        addDependency(taskIndex, depedencyState.lastTaskId.value());
                     }
                     depedencyState.lastTaskId = eastl::make_optional(taskIndex);
                 }
+
                 for (const auto& imageDep : task->GetTask()->mSetupData.imageDepends) {
                     u32 dependencyIndex = imageDep.image->GetId();
                     ResourceState& depedencyState = currentResources[dependencyIndex];
                     if (depedencyState.lastTaskId.has_value()) {
-                        currentTasks[taskIndex].parents.push_back(depedencyState.lastTaskId.value());
+                        addDependency(taskIndex, depedencyState.lastTaskId.value());
                     }
                     depedencyState.lastTaskId = eastl::make_optional(taskIndex);
                 }
+
                 for (const auto& asDep : task->GetTask()->mSetupData.accelerationStructureDepends) {
                     u32 dependencyIndex = {};
                     if (eastl::holds_alternative<TaskBlas>(asDep.accelerationStructure)) {
@@ -454,7 +473,7 @@ namespace PyroshockStudios {
 
                     ResourceState& depedencyState = currentResources[dependencyIndex];
                     if (depedencyState.lastTaskId.has_value()) {
-                        currentTasks[taskIndex].parents.push_back(depedencyState.lastTaskId.value());
+                        addDependency(taskIndex, depedencyState.lastTaskId.value());
                     }
                     depedencyState.lastTaskId = eastl::make_optional(taskIndex);
                 }
@@ -614,7 +633,7 @@ namespace PyroshockStudios {
             bBaked = true;
             Logger::Trace(mLogStream, "Rebuilt task graph, {} task objects, {} batch objects", mTasks.size(), mBatches.size());
         }
-        SHOCKGRAPH_API void TaskGraph::BeginFrame(u32 timeoutMilliseconds) {
+        void TaskGraph::BeginFrame(u32 timeoutMilliseconds) {
             ASSERT(bBaked, "Build() must be called before starting a frame in a rendergraph!");
             // i dont know why, but cpu timeline index has to be 1 frame ahead than normal...
             ++mCpuTimelineIndex;
@@ -635,7 +654,7 @@ namespace PyroshockStudios {
                 Logger::Fatal(mLogStream, "GPU hanging! Aborting program!");
             }
         }
-        SHOCKGRAPH_API void TaskGraph::EndFrame() {
+        void TaskGraph::EndFrame() {
             eastl::vector<ISwapChain*> swap_chains;
             for (TaskSwapChain& swapChain : mSwapChains) {
                 swap_chains.emplace_back(swapChain->Internal());
@@ -654,9 +673,8 @@ namespace PyroshockStudios {
                     bufferCopy->mCurrentBufferInFlight = mFrameIndex;
                 }
             }
-
         }
-        SHOCKGRAPH_API void TaskGraph::Execute() {
+        void TaskGraph::Execute() {
             ASSERT(bInFrame, "Do not call Execute() outside of a frame!");
             ASSERT(mPendingCommands.empty(), "Command buffer should be null!");
             ICommandBuffer* commandBuffer = mQueue->GetCommandBuffer({
@@ -746,11 +764,11 @@ namespace PyroshockStudios {
         }
 
 
-        SHOCKGRAPH_API eastl::span<GenericTask*> TaskGraph::GetTasks() {
+        eastl::span<GenericTask*> TaskGraph::GetTasks() {
             return mAllTaskRefs;
         }
 
-        SHOCKGRAPH_API f64 TaskGraph::GetTaskTimingsNs(GenericTask* task) {
+        f64 TaskGraph::GetTaskTimingsNs(GenericTask* task) const {
             for (TaskExecute* taskExec : mTasks) {
                 if (taskExec->GetTask() != task)
                     continue;
@@ -761,22 +779,22 @@ namespace PyroshockStudios {
             return 0.0;
         }
 
-        SHOCKGRAPH_API f64 TaskGraph::GetGraphTimingsNs() {
+        f64 TaskGraph::GetGraphTimingsNs() const {
             ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
             eastl::span timestamps = pool->GetTimestamps(mBaseGraphTimestampIndex, 2);
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 
-        SHOCKGRAPH_API f64 TaskGraph::GetMiscFlushesTimingsNs() {
+        f64 TaskGraph::GetMiscFlushesTimingsNs() const {
             ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
             eastl::span timestamps = pool->GetTimestamps(mBaseMiscFlushesTimestampIndex, 2);
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 
-        SHOCKGRAPH_API u64 TaskGraph::GetCpuTimelineValue() const {
+        u64 TaskGraph::GetCpuTimelineValue() const {
             return mCpuTimelineIndex;
         }
-        SHOCKGRAPH_API IFence* TaskGraph::GetTimelineFence() {
+        IFence* TaskGraph::GetTimelineFence() {
             return mGpuFrameTimeline;
         }
 
@@ -893,7 +911,7 @@ namespace PyroshockStudios {
             commandBuffer->EndLabel();
         }
 
-        SHOCKGRAPH_API eastl::string TaskGraph::ToString() {
+        eastl::string TaskGraph::ToString() const {
             eastl::string out;
             out += "TaskGraph Batches:\n";
 
@@ -956,6 +974,87 @@ namespace PyroshockStudios {
             }
 
             return out;
+        }
+        TaskGraphDebugInfo TaskGraph::GetDebugInfo() const {
+            TaskGraphDebugInfo info;
+
+            for (size_t i = 0; i < mBatches.size(); ++i) {
+                const auto& batch = mBatches[i];
+                TaskDebugBatch dbgBatch;
+                dbgBatch.batchIndex = static_cast<u32>(i);
+
+                // Buffers
+                for (const auto& bb : batch.barriers.buffer) {
+                    TaskDebugBufferBarrier dbg;
+                    dbg.name = mDevice->GetBufferInfo(bb.buffer).name;
+                    dbg.handle = eastl::bit_cast<u64>(bb.buffer);
+                    dbg.offset = bb.region.offset;
+                    dbg.size = bb.region.size;
+                    dbg.srcLayout = EnumToString(bb.srcLayout);
+                    dbg.dstLayout = EnumToString(bb.dstLayout);
+                    dbgBatch.bufferBarriers.push_back(dbg);
+                }
+
+                // Images
+                for (const auto& ib : batch.barriers.image) {
+                    TaskDebugImageBarrier dbg;
+                    dbg.name = mDevice->GetImageInfo(ib.image).name;
+                    dbg.handle = eastl::bit_cast<u64>(ib.image);
+                    dbg.baseMipLevel = ib.imageSlice.baseMipLevel;
+                    dbg.levelCount = ib.imageSlice.levelCount;
+                    dbg.baseArrayLayer = ib.imageSlice.baseArrayLayer;
+                    dbg.layerCount = ib.imageSlice.layerCount;
+                    dbg.srcLayout = EnumToString(ib.srcLayout);
+                    dbg.dstLayout = EnumToString(ib.dstLayout);
+                    dbgBatch.imageBarriers.push_back(dbg);
+                }
+
+                // AS
+                for (const auto& asb : batch.barriers.accelerationStructure) {
+                    TaskDebugASBarrier dbg;
+                    if (eastl::holds_alternative<BlasId>(asb.accelerationStructure)) {
+                        BlasId blas = eastl::get<BlasId>(asb.accelerationStructure);
+                        dbg.name = mDevice->GetBlasInfo(blas).name;
+                        dbg.handle = eastl::bit_cast<u64>(blas);
+                        dbg.type = "BLAS";
+                    } else if (eastl::holds_alternative<TlasId>(asb.accelerationStructure)) {
+                        TlasId tlas = eastl::get<TlasId>(asb.accelerationStructure);
+                        dbg.name = mDevice->GetTlasInfo(tlas).name;
+                        dbg.handle = eastl::bit_cast<u64>(tlas);
+                        dbg.type = "TLAS";
+                    } else {
+                        dbg.type = "UNKNOWN";
+                    }
+                    dbgBatch.asBarriers.push_back(dbg);
+                }
+
+                for (auto id : batch.taskIds) {
+                    dbgBatch.tasks.push_back(id);
+                    if (info.tasks.find(id) == info.tasks.end()) {
+                        GenericTask* rawTask = mTasks[id]->GetTask();
+                        TaskDebugNode taskNode;
+                        taskNode.id = id;
+                        taskNode.name = rawTask->Info().name;
+                        taskNode.timingNs = GetTaskTimingsNs(rawTask);
+
+                        if (id < mTaskEdges.size()) {
+                            taskNode.edges.dependencies = mTaskEdges[id].dependencies;
+                            taskNode.edges.dependents = mTaskEdges[id].dependents;
+
+                            // If a task has no dependencies, it's a root node
+                            if (taskNode.edges.dependencies.empty()) {
+                                info.rootTasks.push_back(id);
+                            }
+                        }
+
+                        info.tasks[id] = taskNode;
+                    }
+                }
+
+                info.batches.push_back(dbgBatch);
+            }
+
+            return info;
         }
     } // namespace Renderer
 } // namespace PyroshockStudios

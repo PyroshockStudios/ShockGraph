@@ -231,18 +231,12 @@ namespace PyroshockStudios {
               mFramesInFlight(info.resourceManager->mFramesInFlight) {
 
             mGpuFrameTimeline = mDevice->CreateFence({ .name = "Task Graph GPU Timeline" });
-            for (usize i = 0; i < mFramesInFlight; ++i) {
-                mRenderFinishedSemaphores.push_back(mDevice->CreateSemaphore({ "Task Graph Render Finish Semaphore #" + eastl::to_string(i) }));
-            }
         }
         SHOCKGRAPH_API TaskGraph::~TaskGraph() {
             mDevice->WaitIdle();
             // cleanup resources
             this->Reset();
             mDevice->Destroy(mGpuFrameTimeline);
-            for (auto& sem : mRenderFinishedSemaphores) {
-                mDevice->Destroy(sem);
-            }
         }
 
         SHOCKGRAPH_API void TaskGraph::AddTask(GraphicsTask* task) {
@@ -649,14 +643,13 @@ namespace PyroshockStudios {
             }
         }
         SHOCKGRAPH_API void TaskGraph::EndFrame() {
+            eastl::vector<ISwapChain*> swap_chains;
             for (TaskSwapChain& swapChain : mSwapChains) {
-                mQueue->SubmitSwapChain(swapChain->Internal());
+                swap_chains.emplace_back(swapChain->Internal());
             }
             eastl::array signalTimeline = { FenceSubmitInfo{ mGpuFrameTimeline, mCpuTimelineIndex } };
-            eastl::array signalBinary = { SemaphoreSubmitInfo{ mRenderFinishedSemaphores[mFrameIndex], PipelineStageFlagBits::ALL_COMMANDS } };
-            eastl::array waitBinary = { mRenderFinishedSemaphores[mFrameIndex] };
-            mDevice->SubmitQueue({ .queue = mQueue, .signalPresentReadySemaphores = signalBinary, .signalFences = signalTimeline });
-            mDevice->PresentQueue({ .queue = mQueue, .waitSemaphores = waitBinary });
+            mDevice->SubmitQueue({ .queue = mQueue, .commands = mPendingCommands, .signalFences = signalTimeline });
+            mDevice->PresentQueue({ .queue = mQueue, .swapChains = swap_chains });
             mFrameIndex = (mFrameIndex + 1) % mFramesInFlight;
             bInFrame = false;
         }
@@ -744,7 +737,7 @@ namespace PyroshockStudios {
                 });
             } // TASK GRAPH END
             commandBuffer->Complete();
-            mQueue->SubmitCommandBuffer(commandBuffer);
+            mPendingCommands.emplace_back(commandBuffer);
         }
 
 

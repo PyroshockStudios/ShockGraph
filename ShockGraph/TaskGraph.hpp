@@ -25,9 +25,9 @@
 #include "Task.hpp"
 #include "TaskCommandList.hpp"
 #include "TaskResourceManager.hpp"
+#include <EASTL/hash_map.h>
 #include <EASTL/unique_ptr.h>
 #include <EASTL/vector.h>
-#include <EASTL/hash_map.h>
 #include <PyroCommon/LoggerInterface.hpp>
 #include <PyroRHI/Api/Semaphore.hpp>
 
@@ -105,6 +105,7 @@ namespace PyroshockStudios {
             };
 
             ICommandQueue* mQueue = nullptr;
+            eastl::vector<ICommandBuffer*> mPendingCommands = {};
 
             eastl::vector<eastl::unique_ptr<GenericTask>> mInternalTasks = {};
             eastl::vector<Batch> mBatches = {};
@@ -121,7 +122,6 @@ namespace PyroshockStudios {
             u32 mBaseMiscFlushesTimestampIndex = 0;
 
             IFence* mGpuFrameTimeline;
-            eastl::vector<Semaphore> mRenderFinishedSemaphores;
             eastl::vector<ITimestampQueryPool*> mTimestampQueryPools;
 
             u32 mFrameIndex = 0;

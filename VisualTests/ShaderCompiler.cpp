@@ -175,7 +175,6 @@ namespace VisualTests {
         slang::TargetDesc targetDesc = {};
         targetDesc.format = (SlangCompileTarget)mFeatureSet->GetTarget();
         targetDesc.profile = mGlobalSession->findProfile(profileName);
-        targetDesc.forceGLSLScalarBufferLayout = mFeatureSet->Features().bScalarLayout;
 
         slang::SessionDesc sessionDesc = {};
         sessionDesc.targets = &targetDesc;

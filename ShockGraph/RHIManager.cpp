@@ -117,7 +117,7 @@ namespace PyroshockStudios {
                 Logger::Error(mLogStream, "Failed to attach RHI " + eastl::string(mAttachedRHIInfo.info.name) + "! RHIContext creation failed!");
                 return false;
             }
-            mRhiDevice = mRhiApi.loadedContext->CreateDevice();
+            mRhiDevice = mRhiApi.loadedContext->CreateDevice({ .deviceIndex = RHI_DEVICE_INDEX_AUTO });
 
             return true;
         }

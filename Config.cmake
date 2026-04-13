@@ -4,6 +4,7 @@ option(SHOCKGRAPH_BUILD_VISUAL_TESTS "Build visual tests (requires PyroPlatform)
 option(SHOCKGRAPH_SHARED_LIBRARY "Build ShockGraph as shared library" OFF) 
 option(SHOCKGRAPH_USE_PYRO_PLATFORM "Use PyroPlaform for the SwapChain abstraction" ON) 
 
+set(SHOCKGRAPH_BUILD_VISUAL_TESTS ON)
 if (SHOCKGRAPH_BUILD_VISUAL_TESTS)
     set(SHOCKGRAPH_USE_PYRO_PLATFORM ON CACHE BOOL "Use PyroPlaform for the SwapChain abstraction")
 endif()

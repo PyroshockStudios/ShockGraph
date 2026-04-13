@@ -181,8 +181,7 @@ namespace VisualTests {
             singleTimeCommands->BuildAccelerationStructures(buildInfo);
         }
         singleTimeCommands->Complete();
-        device->GetPresentQueue()->SubmitCommandBuffer(singleTimeCommands);
-        device->SubmitQueue({ .queue = device->GetPresentQueue() });
+        device->SubmitQueue({ .queue = device->GetPresentQueue(), .commands = { &singleTimeCommands, 1 } });
         device->WaitIdle();
     }
 

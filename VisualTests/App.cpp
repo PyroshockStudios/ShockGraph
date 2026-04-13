@@ -101,8 +101,16 @@ namespace VisualTests {
 
             mTaskRenderGraph->BeginFrame();
             mTaskRenderGraph->Execute();
-            mTaskRenderGraph->EndFrame();
-
+            TaskFrameSubmitInfo submitInfo = mTaskRenderGraph->EndFrame();
+            mRHIManager->GetRHIDevice()->SubmitQueue({
+                .queue = submitInfo.queue,
+                .commands = submitInfo.commandBuffers,
+                .signalFences = submitInfo.signalFences,
+            });
+            mRHIManager->GetRHIDevice()->PresentQueue({
+                .queue = submitInfo.queue,
+                .swapChains = submitInfo.presentSwapChains,
+            });
             mRHIManager->GetRHIDevice()->CollectGarbage();
         }
     }

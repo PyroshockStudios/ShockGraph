@@ -26,11 +26,11 @@
 #include <libassert/assert.hpp>
 namespace PyroshockStudios {
     inline namespace Renderer {
-        SHOCKGRAPH_API void GraphicsTask::SetRect(const Rect2D& rect) {
+        void GraphicsTask::SetRect(const Rect2D& rect) {
             mGraphicsSetupData.rect = rect;
         }
 
-        SHOCKGRAPH_API void GraphicsTask::BindColorTarget(const BindColorTargetInfo& info) {
+        void GraphicsTask::BindColorTarget(const BindColorTargetInfo& info) {
             ASSERT(mGraphicsSetupData.colorTargets.size() < 8, "Trying to bind too many colour targets!");
 
             mGraphicsSetupData.colorTargets.push_back(info);
@@ -47,7 +47,7 @@ namespace PyroshockStudios {
                 UseImage({ .image = info.resolve.value()->Info().image, .access = AccessConsts::COLOR_ATTACHMENT_OUTPUT_WRITE });
             }
         }
-        SHOCKGRAPH_API void GraphicsTask::BindDepthStencilTarget(const BindDepthStencilTargetInfo& info) {
+        void GraphicsTask::BindDepthStencilTarget(const BindDepthStencilTargetInfo& info) {
             ASSERT(!mGraphicsSetupData.depthStencilTarget, "Already bound depth stencil target!");
 
             mGraphicsSetupData.depthStencilTarget.emplace(info);
@@ -60,23 +60,23 @@ namespace PyroshockStudios {
             UseImage({ .image = info.target->Info().image, .access = access });
         }
 
-        SHOCKGRAPH_API void GenericTask::UseBuffer(const TaskBufferDependencyInfo& info) {
+        void GenericTask::UseBuffer(const TaskBufferDependencyInfo& info) {
             mSetupData.bufferDepends.emplace_back(info);
         }
-        SHOCKGRAPH_API void GenericTask::UseImage(const TaskImageDependencyInfo& info) {
+        void GenericTask::UseImage(const TaskImageDependencyInfo& info) {
             mSetupData.imageDepends.emplace_back(info);
         }
-        SHOCKGRAPH_API void GenericTask::UseAccelerationStructure(const TaskAccelerationStructureDependencyInfo& info) {
+        void GenericTask::UseAccelerationStructure(const TaskAccelerationStructureDependencyInfo& info) {
             mSetupData.accelerationStructureDepends.emplace_back(info);
         }
-        SHOCKGRAPH_API void GenericTask::Reset() {
+        void GenericTask::Reset() {
             mSetupData.bufferDepends.clear();
             mSetupData.imageDepends.clear();
             mSetupData.accelerationStructureDepends.clear();
         }
 
 
-        SHOCKGRAPH_API void CustomTask::ExecuteTask(TaskCommandList& commandList) {
+        void CustomTask::ExecuteTask(TaskCommandList& commandList) {
             ExecuteTask(commandList.Internal());
         }
     } // namespace Renderer

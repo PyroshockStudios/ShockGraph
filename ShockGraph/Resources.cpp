@@ -222,7 +222,7 @@ namespace PyroshockStudios {
         TaskBlas_::~TaskBlas_() {
             Device()->DestroyDeferred(mBlas);
         }
-        PYRO_NODISCARD BlasAddress TaskBlas_::InstanceAddress() {
+        BlasAddress TaskBlas_::InstanceAddress() {
             return Device()->BlasInstanceAddress(mBlas);
         }
         TaskTlas_::TaskTlas_(TaskResourceManager* owner, const TaskTlasInfo& info, TlasId&& tlas)

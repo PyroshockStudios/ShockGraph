@@ -18,7 +18,7 @@ The repository also includes `SGVisualTests`, a small sample application that ex
 - `ShockGraph/`: core library sources
 - `VisualTests/`: sample application and test scenes
 - `resources/`: Slang shaders and shared shader includes
-- `vendor/`: dependency entry points for `PyroRHI` and `PyroPlatform`
+- `vendor/`: dependencies
 - `.github/`: CI configuration
 
 ## Dependencies
@@ -27,20 +27,15 @@ ShockGraph expects the following dependencies:
 
 - CMake 3.28 or newer
 - A C++23-capable compiler
+- [PyroCommon](https://github.com/PyroshockStudios/PyroCommon)
 - [PyroRHI](https://github.com/PyroshockStudios/PyroRHI)
 - [PyroPlatform](https://github.com/PyroshockStudios/PyroPlatform) when building windowed visual tests or using the platform-backed swap-chain path
 - A recent Vulkan SDK when building Vulkan-backed configurations
 
-The repository is configured to use submodules by default:
+The repository is configured to use FetchContent by default to pull these dependencies, however you can install PyroCommon and PyroRHI and ShockGraph, will automatically find it.
 
 ```bash
-git clone --recursive https://github.com/PyroshockStudios/ShockGraph.git
-```
-
-If you already cloned without submodules:
-
-```bash
-git submodule update --init --recursive
+git clone https://github.com/PyroshockStudios/ShockGraph.git
 ```
 
 `SGVisualTests` downloads the Slang SDK at configure time, so CMake needs network access when that target is enabled.
@@ -58,7 +53,9 @@ Enabling `SHOCKGRAPH_BUILD_VISUAL_TESTS` forces `SHOCKGRAPH_USE_PYRO_PLATFORM=ON
 Additional RHI backend options such as `PYRO_RHI_BUILD_VULKAN` or `PYRO_RHI_BUILD_DX12` are provided by `PyroRHI`.
 
 ## Build
-
+[![Windows MSVC](https://github.com/PyroshockStudios/ShockGraph/actions/workflows/cmake-windows-msvc.yml/badge.svg)](https://github.com/PyroshockStudios/ShockGraph/actions/workflows/cmake-windows-msvc.yml)
+[![Linux GCC & Clang](https://github.com/PyroshockStudios/ShockGraph/actions/workflows/cmake-linux.yml/badge.svg)](https://github.com/PyroshockStudios/ShockGraph/actions/workflows/cmake-linux.yml)
+[![macOS ARM/x86](https://github.com/PyroshockStudios/ShockGraph/actions/workflows/cmake-macos.yml/badge.svg)](https://github.com/PyroshockStudios/ShockGraph/actions/workflows/cmake-macos.yml)
 ### Linux
 
 For Vulkan-based builds, install a recent Vulkan SDK. For `SGVisualTests`, X11 keyboard support is also required:

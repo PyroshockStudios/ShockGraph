@@ -38,14 +38,14 @@
 
 namespace PyroshockStudios {
     inline namespace Renderer {
-        SHOCKGRAPH_API RHIManager::RHIManager() {
+        RHIManager::RHIManager() {
         }
-        SHOCKGRAPH_API RHIManager::~RHIManager() {
+        RHIManager::~RHIManager() {
             DetachRHI();
             ReleaseAvailableRHIs();
         }
 
-        SHOCKGRAPH_API void RHIManager::DiscoverAvailableRHIs() {
+        void RHIManager::DiscoverAvailableRHIs() {
             ReleaseAvailableRHIs();
             eastl::string rhiDirectory = PlatformFactory::Get<IFileSystem>()->GetExecutableDirectory() + "/RHI";
 
@@ -99,7 +99,7 @@ namespace PyroshockStudios {
             }
         }
 
-        SHOCKGRAPH_API bool RHIManager::AttachRHI(GUID rhiGUID, const RHICreateInfo& createInfo, u32 selectGpuVendorDeviceIdMask) {
+        bool RHIManager::AttachRHI(GUID rhiGUID, const RHICreateInfo& createInfo, u32 selectGpuVendorDeviceIdMask) {
             if (mAttachedRHIInfo.library != nullptr) {
                 Logger::Error(mLogStream, "RHI " + eastl::string(mAttachedRHIInfo.info.name) + " is currently attached! Application must be restarted to use a different RHI!.");
                 return false;
@@ -134,17 +134,17 @@ namespace PyroshockStudios {
 
             return true;
         }
-        SHOCKGRAPH_API const RHIManager::AttachableRHIInfo& RHIManager::GetAttachedRHIInfo() {
+        const RHIManager::AttachableRHIInfo& RHIManager::GetAttachedRHIInfo() {
             return mAttachedRHIInfo;
         }
-        SHOCKGRAPH_API RHIContext* RHIManager::GetAttachedRHI() {
+        RHIContext* RHIManager::GetAttachedRHI() {
             return mRhiApi.loadedContext;
         }
-        SHOCKGRAPH_API IDevice* RHIManager::GetRHIDevice() {
+        IDevice* RHIManager::GetRHIDevice() {
             return mRhiDevice;
         }
 
-        SHOCKGRAPH_API eastl::vector<RHIInfo> RHIManager::QueryAvailableRHIs() const {
+        eastl::vector<RHIInfo> RHIManager::QueryAvailableRHIs() const {
             eastl::vector<RHIInfo> infos{};
             infos.reserve(mAvailableRHIs.size());
             for (const auto& attachable : mAvailableRHIs) {

@@ -43,6 +43,12 @@ namespace PyroshockStudios {
             Rect2D srcRect = {};
             Rect2D dstRect = {};
         };
+        struct TaskFrameSubmitInfo {
+            ICommandQueue* queue;
+            eastl::vector<ICommandBuffer*> commandBuffers;
+            eastl::vector<FenceSubmitInfo> signalFences;
+            eastl::vector<ISwapChain*> presentSwapChains;
+        };
         struct TaskDebugBufferBarrier {
             eastl::string name;
             u64 handle;
@@ -110,7 +116,10 @@ namespace PyroshockStudios {
             SHOCKGRAPH_API void Build();
 
             SHOCKGRAPH_API void BeginFrame(u32 timeoutMilliseconds = 1000);
-            SHOCKGRAPH_API void EndFrame();
+            /**
+             * @return the submit and present info. This must be submitted to the IDevice manually.
+             */
+            PYRO_NODISCARD SHOCKGRAPH_API TaskFrameSubmitInfo EndFrame();
             SHOCKGRAPH_API void Execute();
 
             SHOCKGRAPH_API void InjectLogger(ILogStream* stream) override {

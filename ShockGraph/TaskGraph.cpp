@@ -654,14 +654,14 @@ namespace PyroshockStudios {
                 Logger::Fatal(mLogStream, "GPU hanging! Aborting program!");
             }
         }
-        void TaskGraph::EndFrame() {
-            eastl::vector<ISwapChain*> swap_chains;
+        TaskFrameSubmitInfo TaskGraph::EndFrame() {
+            TaskFrameSubmitInfo submitInfo;
             for (TaskSwapChain& swapChain : mSwapChains) {
-                swap_chains.emplace_back(swapChain->Internal());
+                submitInfo.presentSwapChains.emplace_back(swapChain->Internal());
             }
-            eastl::array signalTimeline = { FenceSubmitInfo{ mGpuFrameTimeline, mCpuTimelineIndex } };
-            mDevice->SubmitQueue({ .queue = mQueue, .commands = mPendingCommands, .signalFences = signalTimeline });
-            mDevice->PresentQueue({ .queue = mQueue, .swapChains = swap_chains });
+            submitInfo.queue = mQueue;
+            submitInfo.commandBuffers = eastl::move(mPendingCommands);
+            submitInfo.signalFences.push_back({ mGpuFrameTimeline, mCpuTimelineIndex });
             mFrameIndex = (mFrameIndex + 1) % mFramesInFlight;
             bInFrame = false;
             mPendingCommands.clear();
@@ -673,6 +673,7 @@ namespace PyroshockStudios {
                     bufferCopy->mCurrentBufferInFlight = mFrameIndex;
                 }
             }
+            return submitInfo;
         }
         void TaskGraph::Execute() {
             ASSERT(bInFrame, "Do not call Execute() outside of a frame!");

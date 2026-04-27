@@ -775,6 +775,7 @@ namespace PyroshockStudios {
                     continue;
                 ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
                 eastl::span timestamps = pool->GetTimestamps(taskExec->mBaseTimestampIndex, 2);
+                if (timestamps.empty()) return 0.0;
                 return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
             }
             return 0.0;
@@ -783,12 +784,14 @@ namespace PyroshockStudios {
         f64 TaskGraph::GetGraphTimingsNs() const {
             ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
             eastl::span timestamps = pool->GetTimestamps(mBaseGraphTimestampIndex, 2);
+            if (timestamps.empty()) return 0.0;
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 
         f64 TaskGraph::GetMiscFlushesTimingsNs() const {
             ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
             eastl::span timestamps = pool->GetTimestamps(mBaseMiscFlushesTimestampIndex, 2);
+            if (timestamps.empty()) return 0.0;
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 

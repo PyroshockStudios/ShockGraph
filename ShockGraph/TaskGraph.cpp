@@ -369,8 +369,16 @@ namespace PyroshockStudios {
                             .z = 0,
                             .width = writeInfo.srcRect.width,
                             .height = writeInfo.srcRect.height,
-                            .depth = 1 },
-                        .dstImageBox = { .x = writeInfo.dstRect.x, .y = writeInfo.dstRect.y, .z = 0, .width = writeInfo.dstRect.width, .height = writeInfo.dstRect.height, .depth = 1 },
+                            .depth = 1,
+                        },
+                        .dstImageBox = {
+                            .x = writeInfo.dstRect.x,
+                            .y = writeInfo.dstRect.y,
+                            .z = 0,
+                            .width = writeInfo.dstRect.width,
+                            .height = writeInfo.dstRect.height,
+                            .depth = 1,
+                        },
                     });
                     commandBuffer->ImageBarrier({
                         .image = swapImage,
@@ -775,7 +783,8 @@ namespace PyroshockStudios {
                     continue;
                 ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
                 eastl::span timestamps = pool->GetTimestamps(taskExec->mBaseTimestampIndex, 2);
-                if (timestamps.empty()) return 0.0;
+                if (timestamps.empty())
+                    return 0.0;
                 return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
             }
             return 0.0;
@@ -784,14 +793,16 @@ namespace PyroshockStudios {
         f64 TaskGraph::GetGraphTimingsNs() const {
             ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
             eastl::span timestamps = pool->GetTimestamps(mBaseGraphTimestampIndex, 2);
-            if (timestamps.empty()) return 0.0;
+            if (timestamps.empty())
+                return 0.0;
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 
         f64 TaskGraph::GetMiscFlushesTimingsNs() const {
             ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
             eastl::span timestamps = pool->GetTimestamps(mBaseMiscFlushesTimestampIndex, 2);
-            if (timestamps.empty()) return 0.0;
+            if (timestamps.empty())
+                return 0.0;
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 
@@ -839,21 +850,30 @@ namespace PyroshockStudios {
                         states.mLastKnownBufferLayouts[stagingUpload.dstBuffer] = stagingUpload.dstBufferLayout;
                     }
                     if (stagingUpload.dstImage) {
+                        ImageMipArraySlice mipArray{
+                            .baseMipLevel = stagingUpload.dstImageSlice.mipLevel,
+                            .levelCount = 1,
+                            .baseArrayLayer = stagingUpload.dstImageSlice.baseArrayLayer,
+                            .layerCount = stagingUpload.dstImageSlice.layerCount,
+                        };
                         commandBuffer->ImageBarrier({
                             .image = stagingUpload.dstImage,
+                            .imageSlice = mipArray,
                             .srcAccess = AccessConsts::NONE,
                             .dstAccess = AccessConsts::TRANSFER_WRITE,
                             .srcLayout = ImageLayout::Undefined,
                             .dstLayout = ImageLayout::TransferDst,
                         });
-                        // FIXME: multiple slices?
-                        commandBuffer->CopyBufferToImage({ .buffer = uploadPair.srcBuffer,
+                        commandBuffer->CopyBufferToImage({
+                            .buffer = uploadPair.srcBuffer,
                             .image = stagingUpload.dstImage,
                             .imageSlice = stagingUpload.dstImageSlice,
-                            .imageExtent = mDevice->GetImageInfo(stagingUpload.dstImage).size,
-                            .rowPitch = stagingUpload.rowPitch });
+                            .imageExtent = stagingUpload.imageExtent,
+                            .rowPitch = stagingUpload.rowPitch,
+                        });
                         commandBuffer->ImageBarrier({
                             .image = stagingUpload.dstImage,
+                            .imageSlice = mipArray,
                             .srcAccess = AccessConsts::TRANSFER_WRITE,
                             .dstAccess = AccessConsts::READ_WRITE, // TODO, not very efficient
                             .srcLayout = ImageLayout::TransferDst,

@@ -30,10 +30,9 @@
 
 #include "Tests/AlphaBlending.hpp"
 #include "Tests/AlphaToCoverage.hpp"
+#include "Tests/BCnTexture.hpp"
 #include "Tests/BlitImage.hpp"
 #include "Tests/ComputeUAV.hpp"
-#include "Tests/RayQueryCompute.hpp"
-#include "Tests/RayQueryPixel.hpp"
 #include "Tests/DrawIndirect.hpp"
 #include "Tests/GeometryShader.hpp"
 #include "Tests/HelloTexture.hpp"
@@ -42,6 +41,8 @@
 #include "Tests/InstanceBuffer.hpp"
 #include "Tests/MSAA.hpp"
 #include "Tests/PushConstants.hpp"
+#include "Tests/RayQueryCompute.hpp"
+#include "Tests/RayQueryPixel.hpp"
 #include "Tests/SpecialisationConstants.hpp"
 #include "Tests/TesselationShader.hpp"
 #include "Tests/UniformBuffer.hpp"
@@ -59,14 +60,14 @@ using namespace VisualTests;
 
 
 /**
-* CONTROLS: 
-* Next RHI: +
-* Prev RHI: -
-* Next Test: >
-* Prev Test: <
-* Print Task Timings: P
-* Reload Test: R
-*/
+ * CONTROLS:
+ * Next RHI: +
+ * Prev RHI: -
+ * Next Test: >
+ * Prev Test: <
+ * Print Task Timings: P
+ * Reload Test: R
+ */
 
 int main(i32 argc, char** argv) {
     VisualTestApp* app = new VisualTestApp();
@@ -79,6 +80,7 @@ int main(i32 argc, char** argv) {
     app->RegisterTest<VisualTests::InstanceBuffer>();
     app->RegisterTest<VisualTests::SpecialisationConstants>();
     app->RegisterTest<VisualTests::HelloTexture>();
+    app->RegisterTest<VisualTests::BCnTexture>();
     app->RegisterTest<VisualTests::AlphaBlending>();
     app->RegisterTest<VisualTests::MSAA>();
     app->RegisterTest<VisualTests::AlphaToCoverage>();

@@ -168,12 +168,12 @@ namespace PyroshockStudios {
             return retBuffer;
         }
 
-        TaskImage TaskResourceManager::CreatePersistentImage(const TaskImageInfo& info, eastl::span<const u8> initialData) {
+        TaskImage TaskResourceManager::CreatePersistentImage(const TaskImageInfo& info, eastl::span<const TaskImageSubresourceData> initialSubresources) {
             ImageUsageFlags extraRequiredFlags = {};
-
-            if (!initialData.empty()) {
+            if (!initialSubresources.empty()) {
                 extraRequiredFlags |= ImageUsageFlagBits::TRANSFER_DST;
             }
+
             Image image = mDevice->CreateImage({
                 .flags = info.flags,
                 .dimensions = info.dimensions,
@@ -185,49 +185,91 @@ namespace PyroshockStudios {
                 .usage = info.usage | extraRequiredFlags,
                 .name = info.name,
             });
-            // FIXME, texture arrays/mipmaps!
-            if (!initialData.empty()) {
+
+            if (!initialSubresources.empty()) {
                 const u32 rowAlignment = mDevice->Properties().bufferImageRowAlignment;
+                const u32 offsetAlignment = mDevice->Properties().bufferImageCopyOffsetAlignment;
 
                 const RHIUtil::FormatBlockInfo blockInfo = RHIUtil::GetFormatBlockInfo(info.format);
 
-                const u32 blocksX = (info.size.width + blockInfo.blockWidth - 1) / blockInfo.blockWidth;
-                const u32 blocksY = (info.size.height + blockInfo.blockHeight - 1) / blockInfo.blockHeight;
+                DeviceSize totalStagingSize = 0;
+                eastl::vector<DeviceSize> subresourceOffsets;
+                subresourceOffsets.reserve(initialSubresources.size());
 
-                const u32 tightRowPitch = blocksX * blockInfo.bytesPerBlock;
-                const u32 alignedRowPitch = PYRO_ALIGN(tightRowPitch, rowAlignment);
-                const DeviceSize stagingSize = alignedRowPitch * blocksY * info.size.depth;
+                for (u32 layer = 0; layer < info.arrayLayerCount; ++layer) {
+                    for (u32 mip = 0; mip < info.mipLevelCount; ++mip) {
+                        u32 mipWidth = std::max(1u, info.size.width >> mip);
+                        u32 mipHeight = std::max(1u, info.size.height >> mip);
+                        u32 mipDepth = std::max(1u, info.size.depth >> mip);
 
-                const DeviceSize tightSize = tightRowPitch * blocksY * info.size.depth;
-                ASSERT(initialData.size_bytes() >= tightSize, "Initial data is too small!");
+                        u32 blocksX = (mipWidth + blockInfo.blockWidth - 1) / blockInfo.blockWidth;
+                        u32 blocksY = (mipHeight + blockInfo.blockHeight - 1) / blockInfo.blockHeight;
+
+                        u32 tightRowPitch = blocksX * blockInfo.bytesPerBlock;
+                        u32 alignedCopyPitch = PYRO_ALIGN(tightRowPitch, offsetAlignment);
+
+                        totalStagingSize = PYRO_ALIGN(totalStagingSize, offsetAlignment);
+
+                        subresourceOffsets.push_back(totalStagingSize);
+                        totalStagingSize += alignedCopyPitch * blocksY * mipDepth;
+                    }
+                }
 
                 Buffer staging = mDevice->CreateBuffer({
-                    .size = stagingSize, // Use calculated staging size, not ImageRequirements (which might include mips)
+                    .size = totalStagingSize,
                     .usage = BufferUsageFlagBits::TRANSFER_SRC,
                     .initialLayout = BufferLayout::TransferSrc,
                     .allocationDomain = MemoryAllocationDomain::HostStaging,
                     .name = info.name + " (Staging Buffer)",
                 });
-
                 u8* dstPtr = mDevice->BufferHostAddress(staging);
-                const u8* srcPtr = initialData.data();
+                StagingUploadPair uploadPair{ .srcBuffer = staging };
 
-                RHIUtil::CopyAlignedTextureData(srcPtr, dstPtr, tightRowPitch, blocksY, info.size.depth, alignedRowPitch);
+                u32 subresourceIdx = 0;
+                for (u32 layer = 0; layer < info.arrayLayerCount; ++layer) {
+                    for (u32 mip = 0; mip < info.mipLevelCount; ++mip) {
+                        const auto& subData = initialSubresources[subresourceIdx];
+                        u32 mipWidth = std::max(1u, info.size.width >> mip);
+                        u32 mipHeight = std::max(1u, info.size.height >> mip);
+                        u32 mipDepth = std::max(1u, info.size.depth >> mip);
 
-                StagingUploadPair uploadPair{};
-                uploadPair.srcBuffer = staging;
+                        u32 blocksX = (mipWidth + blockInfo.blockWidth - 1) / blockInfo.blockWidth;
+                        u32 blocksY = (mipHeight + blockInfo.blockHeight - 1) / blockInfo.blockHeight;
 
-                // FIXME: Only uploading Mip 0 for now.
-                // To support all mips, you must loop mips, recalculate blocksX/Y per mip,
-                // and offset srcPtr and dstPtr accordingly.
-                uploadPair.uploads.push_back({ .dstImage = image,
-                    .dstImageLayout = ImageLayout::ReadOnly,
-                    .dstImageSlice = {
-                        .mipLevel = 0,
-                        .baseArrayLayer = 0,
-                        .layerCount = info.arrayLayerCount,
-                    },
-                    .rowPitch = alignedRowPitch });
+                        u32 tightRowPitch = blocksX * blockInfo.bytesPerBlock;
+                        u32 alignedCopyPitch = PYRO_ALIGN(tightRowPitch, offsetAlignment);
+
+                        // get upload requirements for the specific mip/layer slice
+                        ImageUploadSlice uploadSlice = mDevice->ImageUploadRequirements(
+                            image,
+                            ImageSlice{ .mipLevel = mip, .arrayLayer = layer });
+
+                        u8* currentDst = dstPtr + subresourceOffsets[subresourceIdx];
+                        RHIUtil::CopyAlignedTextureData(
+                            subData.pixels.data(),
+                            currentDst,
+                            subData.rowPitch,
+                            blocksY,
+                            mipDepth,
+                            alignedCopyPitch);
+
+
+                        uploadPair.uploads.push_back({
+                            .dstImage = image,
+                            .dstImageLayout = ImageLayout::ReadOnly,
+                            .dstImageSlice = {
+                                .mipLevel = mip,
+                                .baseArrayLayer = layer,
+                                .layerCount = 1,
+                            },
+                            .bufferOffset = subresourceOffsets[subresourceIdx],
+                            .imageExtent = { mipWidth, mipHeight, mipDepth },
+                            .rowPitch = alignedCopyPitch,
+                        });
+
+                        subresourceIdx++;
+                    }
+                }
 
                 mPendingStagingUploads.EmplaceBack(eastl::move(uploadPair));
             }

@@ -46,6 +46,11 @@ namespace VisualTests {
             .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
             .name = "Hello Texture Render Image",
         });
+        TaskImageSubresourceData subresource{
+            .pixels = textureData,
+            .rowPitch = 8 * 4,
+            .slicePitch = static_cast<u32>(textureData.size()),
+        };
         texture = info.resourceManager.CreatePersistentImage(
             {
                 .format = Format::RGBA8Unorm,
@@ -53,7 +58,7 @@ namespace VisualTests {
                 .usage = ImageUsageFlagBits::SHADER_RESOURCE,
                 .name = "Hello Texture Input",
             },
-            { textureData.cbegin(), textureData.cend() });
+            { &subresource, 1 });
         textureView = info.resourceManager.DefaultShaderResourceView(texture);
         sampler = info.resourceManager.CreateSampler({ .name = "Hello Texture Sampler" });
 
@@ -81,7 +86,8 @@ namespace VisualTests {
         texture = {};
         info.resourceManager.ReleaseSampler(sampler);
         target = {};
-        vsh = {}; fsh = {};
+        vsh = {};
+        fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> HelloTexture::CreateTasks() {

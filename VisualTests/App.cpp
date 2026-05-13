@@ -163,7 +163,6 @@ namespace VisualTests {
         RebuildTaskGraph();
     }
 
-
     void VisualTestApp::ReleaseTaskResources() {
         if (mRHIManager->GetRHIDevice())
             mRHIManager->GetRHIDevice()->WaitIdle();

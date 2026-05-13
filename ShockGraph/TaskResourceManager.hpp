@@ -52,6 +52,11 @@ namespace PyroshockStudios {
             ImageViewType viewType = ImageViewType::e2D;
             Format format = Format::Inherit;
         };
+        struct TaskImageSubresourceData {
+            eastl::span<const u8> pixels = {};
+            u32 rowPitch = 0;   // The tight row pitch of the source data
+            u32 slicePitch = 0; // The total size of this 2D slice
+        };
 
         using TaskSamplerInfo = SamplerInfo;
         class TaskResourceManager : public ILoggerAware, DeleteCopy, DeleteMove {
@@ -66,7 +71,7 @@ namespace PyroshockStudios {
             SHOCKGRAPH_API ~TaskResourceManager();
 
             PYRO_NODISCARD SHOCKGRAPH_API TaskBuffer CreatePersistentBuffer(const TaskBufferInfo& info, eastl::span<const u8> initialData = {});
-            PYRO_NODISCARD SHOCKGRAPH_API TaskImage CreatePersistentImage(const TaskImageInfo& info, eastl::span<const u8> initialData = {});
+            PYRO_NODISCARD SHOCKGRAPH_API TaskImage CreatePersistentImage(const TaskImageInfo& info, eastl::span<const TaskImageSubresourceData> initialSubresources = {});
             PYRO_NODISCARD SHOCKGRAPH_API TaskBlas CreatePersistentBlas(const TaskBlasInfo& info);
             PYRO_NODISCARD SHOCKGRAPH_API TaskTlas CreatePersistentTlas(const TaskTlasInfo& info);
 
@@ -128,6 +133,8 @@ namespace PyroshockStudios {
                 Image dstImage = {};
                 ImageLayout dstImageLayout = {};
                 ImageArraySlice dstImageSlice = {};
+                DeviceSize bufferOffset = {};
+                Extent3D imageExtent = {};
                 u32 rowPitch = {};
             };
             struct StagingUploadPair {

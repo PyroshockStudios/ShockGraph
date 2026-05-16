@@ -128,7 +128,7 @@ namespace PyroshockStudios {
             } else if (info.mode == TaskBufferMode::Dynamic) {
                 buffer = mDevice->CreateBuffer({
                     .size = info.size,
-                    .usage = info.usage | extraRequiredFlags,
+                    .usage = info.usage | extraRequiredFlags | BufferUsageFlagBits::TRANSFER_DST,
                     .initialLayout = BufferLayout::TransferDst,
                     .allocationDomain = MemoryAllocationDomain::DeviceLocal,
                     .name = info.name,

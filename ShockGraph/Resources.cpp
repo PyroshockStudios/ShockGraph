@@ -32,7 +32,7 @@
 #include <future>
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
         TaskResource_ ::TaskResource_(TaskResourceManager* owner) : mOwner(owner) {
             mOwner->RegisterResource(this);
         }

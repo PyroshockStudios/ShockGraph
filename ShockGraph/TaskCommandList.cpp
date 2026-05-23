@@ -23,6 +23,6 @@
 #include "TaskCommandList.hpp"
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
     }
 } // namespace PyroshockStudios

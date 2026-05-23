@@ -32,7 +32,7 @@
 using namespace PyroshockStudios;
 using namespace PyroshockStudios::Types;
 using namespace PyroshockStudios::RHI;
-using namespace PyroshockStudios::Renderer;
+using namespace PyroshockStudios::ShockGraph;
 namespace VisualTests {
     struct ShaderCompilationInfo {
         ShaderStage stage = {};

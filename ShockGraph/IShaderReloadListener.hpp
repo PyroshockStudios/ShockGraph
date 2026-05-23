@@ -29,7 +29,7 @@
 #include <EASTL/string.h>
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
         typedef struct TaskShader_* TaskShaderHandle;
         struct IShaderReloadListener {
             SHOCKGRAPH_API IShaderReloadListener() = default;

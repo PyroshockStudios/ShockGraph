@@ -34,7 +34,7 @@
 #include <libassert/assert.hpp>
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
 
         static BufferLayout AccessToBufferLayout(Access access) {
             bool bTransfer = false;

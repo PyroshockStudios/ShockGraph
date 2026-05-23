@@ -34,7 +34,7 @@
 #include <ShockGraph/Core.hpp>
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
         class RHIManager : public ILoggerAware, DeleteCopy, DeleteMove {
         public:
             struct AttachableRHIInfo {

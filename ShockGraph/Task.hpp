@@ -31,7 +31,7 @@
 #include <ShockGraph/Core.hpp>
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
         using TaskAccessType = ::PyroshockStudios::RHI::Access;
         enum struct TaskType : u32 {
             None,

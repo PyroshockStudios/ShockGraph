@@ -25,7 +25,7 @@
 
 #include <libassert/assert.hpp>
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
         void GraphicsTask::SetRect(const Rect2D& rect) {
             mGraphicsSetupData.rect = rect;
         }

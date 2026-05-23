@@ -138,7 +138,7 @@ Minimal example:
 #include <ShockGraph/TaskGraph.hpp>
 #include <ShockGraph/TaskResourceManager.hpp>
 
-using namespace PyroshockStudios::Renderer;
+using namespace PyroshockStudios::ShockGraph;
 
 TaskResourceManager resources({
     .rhi = rhiContext,

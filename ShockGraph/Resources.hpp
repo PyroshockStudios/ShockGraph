@@ -38,7 +38,7 @@
 #include <mutex>
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
         using ResourceIndex = u32;
         class TaskCommandList;
         class TaskResourceManager;

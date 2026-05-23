@@ -27,7 +27,7 @@
 #include <PyroRHI/Api/IDevice.hpp>
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
         class TaskGraph;
 
         struct TaskCopyBufferInfo {

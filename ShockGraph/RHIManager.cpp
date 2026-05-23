@@ -37,7 +37,7 @@
 #include <libassert/assert.hpp>
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
         RHIManager::RHIManager() {
         }
         RHIManager::~RHIManager() {

@@ -30,7 +30,7 @@
 #include <PyroCommon/LoggerInterface.hpp>
 
 namespace PyroshockStudios {
-    inline namespace Renderer {
+    inline namespace ShockGraph {
         using TaskId = u32;
         struct TaskGraphInfo {
             TaskResourceManager* resourceManager = nullptr;

@@ -152,7 +152,7 @@ namespace PyroshockStudios {
         TaskImage_::TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, Image&& image)
             : TaskResource_(owner), mCurrentImage(image), mInfo(info) {
         }
-        TaskImage_::TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, class TaskSwapChain_* swapChainOwner)
+        TaskImage_::TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, TaskSwapChain_* swapChainOwner)
             : TaskResource_(owner), mSwapChainOwner(swapChainOwner), mInfo(info) {
         }
         TaskImage_::~TaskImage_() {

@@ -255,6 +255,7 @@ namespace PyroshockStudios {
         TaskSwapChain_::~TaskSwapChain_() {
             Device()->DestroyDeferred(mSwapChain);
         }
+        void TaskSwapChain_::Resize() { mSwapChain->Resize(); }
         TaskBlas_::TaskBlas_(TaskResourceManager* owner, const TaskBlasInfo& info, BlasId&& blas)
             : TaskResource_(owner), mBlas(blas), mInfo(info) {
         }

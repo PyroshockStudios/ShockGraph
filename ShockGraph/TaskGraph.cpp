@@ -669,11 +669,6 @@ namespace PyroshockStudios {
             ++mCpuTimelineIndex;
             bInFrame = true;
             for (TaskSwapChain& swapChain : mSwapChains) {
-                if (swapChain->bFlagResize) {
-                    swapChain->bFlagResize = false;
-                    mDevice->WaitIdle();
-                    swapChain->Internal()->Resize();
-                }
                 u32 imageIndex = swapChain->Internal()->AcquireNextImage();
                 swapChain->bSafePresent = imageIndex != PYRO_SWAPCHAIN_ACQUIRE_FAIL;
             }

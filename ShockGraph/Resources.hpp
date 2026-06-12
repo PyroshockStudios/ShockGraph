@@ -238,7 +238,7 @@ namespace PyroshockStudios {
         };
         struct TaskImage_ final : public TaskResource_ {
             SHOCKGRAPH_API TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, Image&& image);
-            SHOCKGRAPH_API TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, class TaskSwapChain_* swapChainOwner);
+            SHOCKGRAPH_API TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, struct TaskSwapChain_* swapChainOwner);
             SHOCKGRAPH_API ~TaskImage_() override;
             PYRO_NODISCARD Image Internal();
             PYRO_NODISCARD Image InternalInFlightBuffer(u32 index);
@@ -266,10 +266,10 @@ namespace PyroshockStudios {
             mutable ShaderResourceId srvId;
             mutable UnorderedAccessId uavId;
             Image mCurrentImage = PYRO_NULL_IMAGE;
-            class TaskSwapChain_* mSwapChainOwner = nullptr;
+            struct TaskSwapChain_* mSwapChainOwner = nullptr;
             TaskImageInfo mInfo;
 
-            friend class TaskColorTarget_;
+            friend struct TaskColorTarget_;
             friend class TaskResourceManager;
             friend class TaskGraph;
         };
@@ -355,16 +355,13 @@ namespace PyroshockStudios {
             PYRO_NODISCARD PYRO_FORCEINLINE TaskImage SwapBuffer() {
                 return mSwapBuffer;
             }
-            PYRO_NODISCARD PYRO_FORCEINLINE void Resize() {
-                bFlagResize = true;
-            }
+            PYRO_NODISCARD PYRO_FORCEINLINE void Resize();
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskSwapChainInfo& Info() const { return mInfo; }
 
         private:
             ISwapChain* mSwapChain = nullptr;
             TaskImage mSwapBuffer = nullptr;
             TaskSwapChainInfo mInfo;
-            bool bFlagResize = false;
             bool bSafePresent = false;
             friend class TaskResourceManager;
             friend class TaskGraph;

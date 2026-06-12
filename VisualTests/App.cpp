@@ -98,7 +98,9 @@ namespace VisualTests {
             last = next;
             UpdateTitle();
             PlatformFactory::Get<IWindowManager>()->PollEvents();
-
+            while (mActiveWindow->IsMinimized() || mActiveWindow->GetSize().width == 0 || mActiveWindow->GetSize().height == 0) {
+                PlatformFactory::Get<IWindowManager>()->WaitEvents();
+            }
             mTaskRenderGraph->BeginFrame();
             mTaskRenderGraph->Execute();
             TaskFrameSubmitInfo submitInfo = mTaskRenderGraph->EndFrame();
@@ -304,7 +306,8 @@ namespace VisualTests {
         mSwapChain = mTaskResourceManager->CreateSwapChain({
             .window = mActiveWindow,
             .format = TaskSwapChainFormat::e8Bit,
-            .imageUsage = ImageUsageFlagBits::TRANSFER_DST | ImageUsageFlagBits::BLIT_DST,
+            .imageUsage = ImageUsageFlagBits::TRANSFER_DST | ImageUsageFlagBits::BLIT_DST |
+                          ImageUsageFlagBits::RENDER_TARGET,
             .vsync = USE_VSYNC,
             .name = "Visual Test Swap Chain",
         });
@@ -324,6 +327,7 @@ namespace VisualTests {
             .displayInfo = { .width = WIDTH, .height = HEIGHT },
             .shaderCompiler = *mShaderCompiler,
             .resourceManager = *mTaskResourceManager,
+            .swapChainImage = mSwapChain->SwapBuffer(),
         });
         for (GenericTask* task : ActiveTest()->CreateTasks()) {
             if (auto* gtask = dynamic_cast<GraphicsTask*>(task); gtask) {
@@ -339,19 +343,6 @@ namespace VisualTests {
             }
             mCurrentTestTasks.emplace_back(eastl::unique_ptr<GenericTask>(task));
         }
-        TaskImage toComposite = ActiveTest()->GetCompositeImageTaskGraph();
-        Rect2D srcRect = Rect2D::Cut({ toComposite->Info().size.width, toComposite->Info().size.height });
-        Rect2D dstRect = Rect2D::Cut({ mActiveWindow->GetSize().width, mActiveWindow->GetSize().height });
-        if (mRHIManager->GetAttachedRHI()->Properties().viewportConvention == RHIViewportConvention::LeftHanded_OriginTopLeft) {
-            dstRect.y = dstRect.height;
-            dstRect.height *= -1;
-        }
-        mTaskRenderGraph->AddSwapChainWrite({
-            .image = ActiveTest()->GetCompositeImageTaskGraph(),
-            .swapChain = mSwapChain,
-            .srcRect = srcRect,
-            .dstRect = dstRect,
-        });
         mTaskRenderGraph->Build();
 
         printf("%s\n", mTaskRenderGraph->ToString().c_str());

@@ -30,6 +30,7 @@
 #include <PyroRHI/Api/Types.hpp>
 
 #include <future>
+#include <libassert/assert.hpp>
 
 namespace PyroshockStudios {
     inline namespace ShockGraph {
@@ -149,11 +150,16 @@ namespace PyroshockStudios {
         void TaskBuffer_::UnmapMemory(void* memory) {
         }
         TaskImage_::TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, Image&& image)
-            : TaskResource_(owner), mImage(image), mInfo(info) {
+            : TaskResource_(owner), mCurrentImage(image), mInfo(info) {
+        }
+        TaskImage_::TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, class TaskSwapChain_* swapChainOwner)
+            : TaskResource_(owner), mSwapChainOwner(swapChainOwner), mInfo(info) {
         }
         TaskImage_::~TaskImage_() {
             Owner()->ReleaseImageResource(this);
-            Device()->DestroyDeferred(mImage);
+            if (!IsSwapChainOwned()) {
+                Device()->DestroyDeferred(mCurrentImage);
+            }
             if (srvId != PYRO_NULL_SRV) {
                 Device()->DestroyDeferred(srvId);
             }
@@ -161,7 +167,14 @@ namespace PyroshockStudios {
                 Device()->DestroyDeferred(uavId);
             }
         }
+        Image TaskImage_::Internal() {
+            return IsSwapChainOwned() ? InternalInFlightBuffer(mSwapChainOwner->Internal()->GetCurrentImageIndex()) : mCurrentImage;
+        }
+        Image TaskImage_::InternalInFlightBuffer(u32 index) {
+            return mSwapChainOwner ? mSwapChainOwner->Internal()->GetBackBuffer(static_cast<i32>(index)) : PYRO_NULL_IMAGE;
+        }
         ShaderResourceId TaskImage_::ShaderResource() const {
+            ASSERT(!IsSwapChainOwned(), "Cannot create shader resource from swap chain image");
             std::lock_guard l(mShaderResourceLock);
             if (srvId == PYRO_NULL_SRV) {
                 srvId = const_cast<TaskImage_*>(this)->Device()->CreateShaderResource(GetDefaultResourceInfo());
@@ -169,6 +182,7 @@ namespace PyroshockStudios {
             return srvId;
         }
         UnorderedAccessId TaskImage_::UnorderedAccess() const {
+            ASSERT(!IsSwapChainOwned(), "Cannot create shader resource from swap chain image");
             std::lock_guard l(mShaderResourceLock);
             if (uavId == PYRO_NULL_UAV) {
                 uavId = const_cast<TaskImage_*>(this)->Device()->CreateUnorderedAccess(GetDefaultResourceInfo());
@@ -177,7 +191,7 @@ namespace PyroshockStudios {
         }
         ImageResourceInfo TaskImage_::GetDefaultResourceInfo() const {
             ImageResourceInfo info;
-            info.image = mImage;
+            info.image = mCurrentImage;
             info.slice.layerCount = mInfo.arrayLayerCount;
             info.slice.levelCount = mInfo.mipLevelCount;
             switch (mInfo.dimensions) {
@@ -201,8 +215,20 @@ namespace PyroshockStudios {
         TaskColorTarget_::TaskColorTarget_(TaskResourceManager* owner, const TaskColorTargetInfo& info, RenderTarget&& renderTarget)
             : TaskResource_(owner), mRenderTarget(renderTarget), mInfo(info) {
         }
+        TaskColorTarget_::TaskColorTarget_(TaskResourceManager* owner, const TaskColorTargetInfo& info, eastl::vector<RenderTarget>&& swapChainTargets)
+            : TaskResource_(owner), mSwapTargets(eastl::move(swapChainTargets)), mInfo(info) {
+        }
         TaskColorTarget_::~TaskColorTarget_() {
-            Device()->DestroyDeferred(mRenderTarget);
+            if (mRenderTarget) {
+                Device()->DestroyDeferred(mRenderTarget);
+            }
+        }
+        RenderTarget TaskColorTarget_::Internal() {
+            return IsSwapChainOwned() ? 
+                InternalInFlightTarget(mInfo.image->mSwapChainOwner->Internal()->GetCurrentImageIndex()) : mRenderTarget;
+        }
+        RenderTarget TaskColorTarget_::InternalInFlightTarget(u32 index) {
+            return IsSwapChainOwned() ? mSwapTargets[index] : nullptr;
         }
         TaskDepthStencilTarget_::TaskDepthStencilTarget_(TaskResourceManager* owner, const TaskDepthStencilTargetInfo& info, RenderTarget&& renderTarget)
             : TaskResource_(owner), mRenderTarget(renderTarget), mInfo(info) {
@@ -211,7 +237,20 @@ namespace PyroshockStudios {
             Device()->DestroyDeferred(mRenderTarget);
         }
         TaskSwapChain_::TaskSwapChain_(TaskResourceManager* owner, const TaskSwapChainInfo& info, ISwapChain*&& swapChain)
-            : TaskResource_(owner), mSwapChain(swapChain), mInfo(info) {
+            : TaskResource_(owner), mSwapChain(swapChain), mInfo(info),
+              mSwapBuffer(
+                  new TaskImage_(owner,
+                      {
+                          .dimensions = ImageDimensions::e2D,
+                          .format = swapChain->GetFormat(),
+                          .size = { swapChain->GetSurfaceExtent().width, swapChain->GetSurfaceExtent().height, 1 },
+                          .mipLevelCount = 1,
+                          .arrayLayerCount = 1,
+                          .sampleCount = RasterizationSamples::e1,
+                          .usage = info.imageUsage,
+                      },
+                      this)) {
+            mInfo.bufferCount = mSwapChain->Info().bufferCount;
         }
         TaskSwapChain_::~TaskSwapChain_() {
             Device()->DestroyDeferred(mSwapChain);
@@ -231,5 +270,5 @@ namespace PyroshockStudios {
         TaskTlas_::~TaskTlas_() {
             Device()->DestroyDeferred(mTlas);
         }
-    } // namespace Renderer
+    } // namespace ShockGraph
 } // namespace PyroshockStudios

@@ -36,12 +36,6 @@ namespace VisualTests {
             reinterpret_cast<u32&>(sampleCount) <<= 1;
         }
 
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "AlphaToCoverage Resolve Render Image",
-        });
         imageMSAA = info.resourceManager.CreatePersistentImage({
             .format = Format::RGBA8Unorm,
             .size = { info.displayInfo.width, info.displayInfo.height },
@@ -50,7 +44,7 @@ namespace VisualTests {
             .name = "AlphaToCoverage MSAA Render Image",
         });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "AlphaToCoverage Resolve RT",
         });
         targetMSAA = info.resourceManager.CreateColorTarget({
@@ -63,7 +57,7 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "AlphaToCoverage Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .multiSampleState = {
                     .sampleCount = sampleCount,
                     .bAlphaToCoverage = true,
@@ -76,7 +70,6 @@ namespace VisualTests {
             });
     }
     void AlphaToCoverage::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         imageMSAA = {};
         target = {};
         targetMSAA = {};

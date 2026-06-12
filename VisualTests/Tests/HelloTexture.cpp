@@ -40,12 +40,6 @@ namespace VisualTests {
             }
         }
 
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Hello Texture Render Image",
-        });
         texture = info.resourceManager.CreatePersistentImage(
             {
                 .format = Format::RGBA8Unorm,
@@ -58,7 +52,7 @@ namespace VisualTests {
         sampler = info.resourceManager.CreateSampler({ .name = "Hello Texture Sampler" });
 
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Hello Texture RT",
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/HelloTexture.slang",
@@ -67,7 +61,7 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "Hello Texture Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .name = "Raster Pipeline",
             },
             {
@@ -76,7 +70,6 @@ namespace VisualTests {
             });
     }
     void HelloTexture::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         info.resourceManager.ReleaseShaderResourceView(textureView);
         texture = {};
         info.resourceManager.ReleaseSampler(sampler);

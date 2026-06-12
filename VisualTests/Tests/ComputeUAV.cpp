@@ -36,12 +36,6 @@ namespace VisualTests {
     static const u32 INDEX_COUNT = (GRID_SIZE_U - 1) * (GRID_SIZE_V - 1) * 6;
 
     void ComputeUAV::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Compute-UAV Render Image",
-        });
         depth = info.resourceManager.CreatePersistentImage({
             .format = Format::D32Sfloat,
             .size = { info.displayInfo.width, info.displayInfo.height },
@@ -65,7 +59,7 @@ namespace VisualTests {
         vboUaView = info.resourceManager.CreateUnorderedAccessView({ .buffer = vboUav });
         idxUaView = info.resourceManager.CreateUnorderedAccessView({ .buffer = idxUav });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Compute-UAV RT",
         });
         depthTarget = info.resourceManager.CreateDepthStencilTarget({
@@ -81,7 +75,7 @@ namespace VisualTests {
             { .stage = ShaderStage::Compute, .entryPoint = "computeMain", .name = "Compute-UAV Csh" });
         renderVertices = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .depthStencilState = eastl::make_optional<DepthStencilStateInfo>(DepthStencilStateInfo{
                     .depthStencilFormat = depth->Info().format,
                     .depthTestState = DepthStencilTestState::ReadWrite,
@@ -120,7 +114,6 @@ namespace VisualTests {
     void ComputeUAV::ReleaseResources(const ReleaseResourceInfo& info) {
         info.resourceManager.ReleaseUnorderedAccessView(vboUaView);
         info.resourceManager.ReleaseUnorderedAccessView(idxUaView);
-        image = {};
         depth = {};
         vboUav = {};
         idxUav = {};

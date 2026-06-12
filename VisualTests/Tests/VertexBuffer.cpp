@@ -42,12 +42,6 @@ namespace VisualTests {
     // clang-format on
 
     void VertexBuffer::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Vertex Buffer Render Image",
-        });
         vbo = info.resourceManager.CreatePersistentBuffer(
             {
                 .size = gVertices.size() * sizeof(Vertex),
@@ -57,7 +51,7 @@ namespace VisualTests {
             },
             { (u8*)gVertices.cbegin(), (u8*)gVertices.cend() });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Vertex Buffer RT",
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/VertexBuffer.slang",
@@ -66,7 +60,7 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "Vertex Buffer Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .inputAssemblyState = {
                     .primitiveTopology = PrimitiveTopology::TriangleList,
                     .vertexAttributes = eastl::array{
@@ -94,7 +88,6 @@ namespace VisualTests {
             });
     }
     void VertexBuffer::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         vbo = {};
         target = {};
         vsh = {}; fsh = {};

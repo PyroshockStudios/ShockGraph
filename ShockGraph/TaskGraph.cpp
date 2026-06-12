@@ -35,7 +35,7 @@
 
 namespace PyroshockStudios {
     inline namespace ShockGraph {
-
+        constexpr u32 RESERVED_SWAPCHAIN_WRITE_FLAG = 0x01;
         static BufferLayout AccessToBufferLayout(Access access) {
             bool bTransfer = false;
             bool bCompute = false;
@@ -197,15 +197,25 @@ namespace PyroshockStudios {
         private:
             GenericTask* mTask = {};
         };
+        using SwapChainRtTable = eastl::hash_map<u32, eastl::function<RenderTarget()>>;
         class GraphicsTaskExecute : public TaskExecute {
         public:
-            GraphicsTaskExecute(GraphicsTask* task, RenderPassBeginInfo&& renderPassBeginInfo)
-                : TaskExecute(task), mRenderPassInfo(eastl::move(renderPassBeginInfo)) {
+            GraphicsTaskExecute(GraphicsTask* task, RenderPassBeginInfo&& renderPassBeginInfo, SwapChainRtTable&& rtTable)
+                : TaskExecute(task), mRenderPassInfo(eastl::move(renderPassBeginInfo)), mSwapChainRtLut(eastl::move(rtTable)) {
             }
             ~GraphicsTaskExecute() = default;
             void PreExec(ICommandBuffer* commandBuffer) override {
                 TaskExecute::PreExec(commandBuffer);
-                commandBuffer->BeginRenderPass(mRenderPassInfo);
+                RenderPassBeginInfo renderPassInfo = mRenderPassInfo;
+                for (auto& [i, fnGetRt] : mSwapChainRtLut) {
+                    // swap chains must be resolve targets if paired in an MSAA setup.
+                    if (renderPassInfo.colorAttachments[i].resolve) {
+                        renderPassInfo.colorAttachments[i].resolve.value().target = fnGetRt();
+                    } else {
+                        renderPassInfo.colorAttachments[i].target = fnGetRt();
+                    }
+                }
+                commandBuffer->BeginRenderPass(renderPassInfo);
             }
             void PostExec(ICommandBuffer* commandBuffer) override {
                 commandBuffer->EndRenderPass();
@@ -213,6 +223,7 @@ namespace PyroshockStudios {
             }
 
         private:
+            SwapChainRtTable mSwapChainRtLut;
             RenderPassBeginInfo mRenderPassInfo = {};
         };
         class ComputeTaskExecute : public TaskExecute {
@@ -243,11 +254,19 @@ namespace PyroshockStudios {
             ASSERT(task);
             ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
             task->SetupTask();
+            SwapChainRtTable swapChainRtLookup{};
             RenderPassBeginInfo renderPassInfo{};
             renderPassInfo.colorAttachments.reserve(task->mGraphicsSetupData.colorTargets.size());
+            u32 colTargetIndex = 0;
             for (const auto& colorTarget : task->mGraphicsSetupData.colorTargets) {
                 ColorAttachmentInfo attachmentInfo = {};
                 attachmentInfo.target = colorTarget.target->Internal();
+                if (colorTarget.target->IsSwapChainOwned()) {
+                    swapChainRtLookup[colTargetIndex] = [target = colorTarget.target] -> RHI::RenderTarget {
+                        u32 imgIdx = target->Image()->mSwapChainOwner->Internal()->GetCurrentImageIndex();
+                        return target->InternalInFlightTarget(imgIdx);
+                    };
+                }
                 if (colorTarget.clear) {
                     attachmentInfo.clearValue = *colorTarget.clear;
                     attachmentInfo.loadOp = AttachmentLoadOp::Clear;
@@ -258,6 +277,12 @@ namespace PyroshockStudios {
                 if (colorTarget.resolve) {
                     attachmentInfo.resolve.emplace(ResolveMode::Average,
                         colorTarget.resolve.value()->Internal());
+                    if (colorTarget.resolve.value()->IsSwapChainOwned()) {
+                        swapChainRtLookup[colTargetIndex] = [target = colorTarget.resolve.value()] -> RHI::RenderTarget {
+                            u32 imgIdx = target->Image()->mSwapChainOwner->Internal()->GetCurrentImageIndex();
+                            return target->InternalInFlightTarget(imgIdx);
+                        };
+                    }
                 }
                 renderPassInfo.colorAttachments.emplace_back(eastl::move(attachmentInfo));
             }
@@ -295,9 +320,9 @@ namespace PyroshockStudios {
                 // FIXME stencil buffer
                 Extent3D extent;
                 if (!renderPassInfo.colorAttachments.empty()) {
-                    extent = mDevice->GetImageInfo(mDevice->GetRenderTargetInfo(renderPassInfo.colorAttachments[0].target).image).size;
-                } else if (renderPassInfo.depthStencilAttachment.has_value()) {
-                    extent = mDevice->GetImageInfo(mDevice->GetRenderTargetInfo(renderPassInfo.depthStencilAttachment->target).image).size;
+                    extent = task->mGraphicsSetupData.colorTargets[0].target->Info().image->Info().size;
+                } else if (task->mGraphicsSetupData.depthStencilTarget.has_value()) {
+                    extent = task->mGraphicsSetupData.depthStencilTarget.value().target->Info().image->Info().size;
                 } else {
                     ASSERT(false, "NO render targets defined!");
                 }
@@ -307,7 +332,7 @@ namespace PyroshockStudios {
                 };
             }
             mAllTaskRefs.push_back(task);
-            mTasks.push_back(new GraphicsTaskExecute(task, eastl::move(renderPassInfo)));
+            mTasks.push_back(new GraphicsTaskExecute(task, eastl::move(renderPassInfo), eastl::move(swapChainRtLookup)));
         }
         void TaskGraph::AddTask(ComputeTask* task) {
             ASSERT(task);
@@ -331,61 +356,6 @@ namespace PyroshockStudios {
             mTasks.push_back(new TaskExecute(task));
         }
 
-        void TaskGraph::AddSwapChainWrite(const TaskSwapChainWriteInfo& writeInfo) {
-            ASSERT(writeInfo.swapChain);
-            ASSERT(writeInfo.image);
-            ASSERT(!bBaked, "Cannot add to a task graph after it was built!");
-            ASSERT(writeInfo.image->Info().usage & ImageUsageFlagBits::BLIT_SRC &&
-                       writeInfo.image->Info().usage & ImageUsageFlagBits::TRANSFER_SRC,
-                "Image must be created with BLIT_SRC and TRANSFER_SRC usages!");
-            mSwapChains.push_back(writeInfo.swapChain);
-            mInternalTasks.emplace_back(eastl::make_unique<CustomCallbackTask>(
-                TaskInfo{
-                    .name = "Write Swap Buffer",
-                    .color = LabelColor::BLACK,
-                },
-                [this, writeInfo](CustomTask& task) {
-                    task.UseImage({ .image = writeInfo.image, .access = AccessConsts::BLIT_READ });
-                },
-                [this, writeInfo](ICommandBuffer* commandBuffer) {
-                    i32 result = writeInfo.swapChain->Internal()->AcquireNextImage();
-                    if (result == PYRO_SWAPCHAIN_ACQUIRE_FAIL) {
-                        return;
-                    }
-                    Image swapImage = writeInfo.swapChain->Internal()->GetBackBuffer(result);
-                    commandBuffer->ImageBarrier({
-                        .image = swapImage,
-                        .srcAccess = AccessConsts::BOTTOM_OF_PIPE_READ,
-                        .dstAccess = AccessConsts::BLIT_WRITE,
-                        .srcLayout = ImageLayout::Undefined,
-                        .dstLayout = ImageLayout::BlitDst,
-                    });
-                    commandBuffer->BlitImageToImage({
-                        .srcImage = writeInfo.image->Internal(),
-                        .dstImage = swapImage,
-                        .srcImageBox = {
-                            .x = writeInfo.srcRect.x,
-                            .y = writeInfo.srcRect.y,
-                            .z = 0,
-                            .width = writeInfo.srcRect.width,
-                            .height = writeInfo.srcRect.height,
-                            .depth = 1 },
-                        .dstImageBox = { .x = writeInfo.dstRect.x, .y = writeInfo.dstRect.y, .z = 0, .width = writeInfo.dstRect.width, .height = writeInfo.dstRect.height, .depth = 1 },
-                    });
-                    commandBuffer->ImageBarrier({
-                        .image = swapImage,
-                        .srcAccess = AccessConsts::BLIT_WRITE,
-                        .dstAccess = AccessConsts::TOP_OF_PIPE_READ_WRITE,
-                        .srcLayout = ImageLayout::BlitDst,
-                        .dstLayout = ImageLayout::PresentSrc,
-                    });
-                },
-                TaskType::Transfer));
-            mInternalTasks.back()->SetupTask();
-            mAllTaskRefs.push_back(mInternalTasks.back().get());
-            mTasks.push_back(new TaskExecute(mInternalTasks.back().get()));
-        }
-
         void TaskGraph::Reset() {
             for (TaskExecute* task : mTasks) {
                 delete task;
@@ -405,6 +375,41 @@ namespace PyroshockStudios {
             bBaked = false;
         }
         void TaskGraph::Build() {
+            {
+                Logger::Trace(mLogStream, "Adding swap chain tasks");
+                eastl::hash_set<TaskSwapChain_*> accessedSwapChains{};
+                for (auto& task : mTasks) {
+                    for (auto& imageDepend : task->GetTask()->mSetupData.imageDepends) {
+                        accessedSwapChains.emplace(imageDepend.image->mSwapChainOwner);
+                    }
+                }
+                for (auto swapChain : accessedSwapChains) {
+                    if (!swapChain)
+                        continue;
+                    mSwapChains.emplace_back(swapChain);
+                }
+                // We must transition the swap chain writes that are authored by this task graph
+                class AuthorSwapChainWriteTask : public CustomTask {
+                public:
+                    AuthorSwapChainWriteTask(TaskSwapChain swapChain)
+                        : mSwapChain(swapChain) {}
+
+                private:
+                    void SetupTask() final {
+                        UseImage({ .image = mSwapChain->SwapBuffer(),
+                            .reservedBytes = RESERVED_SWAPCHAIN_WRITE_FLAG });
+                    }
+                    void ExecuteTask(ICommandBuffer*) final {}
+                    TaskType GetType() final { return TaskType::Graphics; }
+                    TaskSwapChain mSwapChain;
+                };
+                for (auto& swapChain : mSwapChains) {
+                    auto* task = new AuthorSwapChainWriteTask(swapChain);
+                    mInternalTasks.emplace_back(task);
+                    AddTask(task);
+                }
+            }
+
             Logger::Trace(mLogStream, "Rebuilding tasks");
 
             struct ResourceState {
@@ -539,15 +544,40 @@ namespace PyroshockStudios {
                     for (const auto& imageDep : task->GetTask()->mSetupData.imageDepends) {
                         u32 dependencyIndex = imageDep.image->GetId();
                         ResourceState& dependencyState = currentResources[dependencyIndex];
-                        if (dependencyState.currentAccess != imageDep.access) {
-                            ImageMemoryBarrierInfo barrier{};
-                            barrier.image = imageDep.image->Internal();
-                            barrier.srcLayout = AccessToImageLayout(dependencyState.currentAccess);
-                            barrier.srcAccess = dependencyState.currentAccess;
-                            barrier.dstLayout = AccessToImageLayout(imageDep.access);
-                            barrier.dstAccess = imageDep.access;
-                            batch.barriers.image.push_back(barrier);
-                            dependencyState.currentAccess = imageDep.access;
+                        if (imageDep.reservedBytes & RESERVED_SWAPCHAIN_WRITE_FLAG) {
+                            batch.barriers.imageLambda.emplace_back([=] {
+                                ImageMemoryBarrierInfo barrier{};
+                                barrier.image = imageDep.image->Internal();
+                                barrier.srcLayout = AccessToImageLayout(dependencyState.currentAccess);
+                                barrier.srcAccess = dependencyState.currentAccess;
+                                barrier.dstLayout = ImageLayout::PresentSrc;
+                                barrier.dstAccess = AccessConsts::BOTTOM_OF_PIPE_READ;
+                                return barrier;
+                            });
+                        } else {
+                            if (dependencyState.currentAccess != imageDep.access) {
+                                if (imageDep.image->IsSwapChainOwned()) {
+                                    // swap chains are mutable!
+                                    batch.barriers.imageLambda.emplace_back([=] {
+                                        ImageMemoryBarrierInfo barrier{};
+                                        barrier.srcLayout = AccessToImageLayout(dependencyState.currentAccess);
+                                        barrier.srcAccess = dependencyState.currentAccess;
+                                        barrier.dstLayout = AccessToImageLayout(imageDep.access);
+                                        barrier.dstAccess = imageDep.access;
+                                        barrier.image = imageDep.image->Internal();
+                                        return barrier;
+                                    });
+                                } else {
+                                    ImageMemoryBarrierInfo barrier{};
+                                    barrier.srcLayout = AccessToImageLayout(dependencyState.currentAccess);
+                                    barrier.srcAccess = dependencyState.currentAccess;
+                                    barrier.dstLayout = AccessToImageLayout(imageDep.access);
+                                    barrier.dstAccess = imageDep.access;
+                                    barrier.image = imageDep.image->Internal();
+                                    batch.barriers.image.push_back(barrier);
+                                }
+                                dependencyState.currentAccess = imageDep.access;
+                            }
                         }
                     }
                     for (const auto& asDepend : task->GetTask()->mSetupData.accelerationStructureDepends) {
@@ -644,6 +674,8 @@ namespace PyroshockStudios {
                     mDevice->WaitIdle();
                     swapChain->Internal()->Resize();
                 }
+                u32 imageIndex = swapChain->Internal()->AcquireNextImage();
+                swapChain->bSafePresent = imageIndex != PYRO_SWAPCHAIN_ACQUIRE_FAIL;
             }
 
             u64 waitIndex = static_cast<u64>(
@@ -657,7 +689,9 @@ namespace PyroshockStudios {
         TaskFrameSubmitInfo TaskGraph::EndFrame() {
             TaskFrameSubmitInfo submitInfo;
             for (TaskSwapChain& swapChain : mSwapChains) {
-                submitInfo.presentSwapChains.emplace_back(swapChain->Internal());
+                if (swapChain->bSafePresent) {
+                    submitInfo.presentSwapChains.emplace_back(swapChain->Internal());
+                }
             }
             submitInfo.queue = mQueue;
             submitInfo.commandBuffers = eastl::move(mPendingCommands);
@@ -735,6 +769,19 @@ namespace PyroshockStudios {
                         }
                         commandBuffer->ImageBarrier(barrier);
                     }
+                    for (auto barrierFn : batch.barriers.imageLambda) {
+                        auto barrier = barrierFn();
+                        auto lastKnownLayout = states.mLastKnownImageLayouts.find(barrier.image);
+                        if (lastKnownLayout != states.mLastKnownImageLayouts.end()) {
+                            barrier.srcLayout = lastKnownLayout->second;
+                            lastKnownLayout->second = barrier.dstLayout;
+                        } else {
+                            states.mLastKnownImageLayouts[barrier.image] = barrier.dstLayout;
+                        }
+                        // Swap chain transitions should be safe
+                        commandBuffer->ImageBarrier(barrier);
+                    }
+
 
                     for (const auto& barrier : batch.barriers.accelerationStructure) {
                         commandBuffer->AccelerationStructureBarrier(barrier);
@@ -775,7 +822,8 @@ namespace PyroshockStudios {
                     continue;
                 ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
                 eastl::span timestamps = pool->GetTimestamps(taskExec->mBaseTimestampIndex, 2);
-                if (timestamps.empty()) return 0.0;
+                if (timestamps.empty())
+                    return 0.0;
                 return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
             }
             return 0.0;
@@ -784,14 +832,16 @@ namespace PyroshockStudios {
         f64 TaskGraph::GetGraphTimingsNs() const {
             ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
             eastl::span timestamps = pool->GetTimestamps(mBaseGraphTimestampIndex, 2);
-            if (timestamps.empty()) return 0.0;
+            if (timestamps.empty())
+                return 0.0;
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 
         f64 TaskGraph::GetMiscFlushesTimingsNs() const {
             ITimestampQueryPool* pool = mTimestampQueryPools[(mFrameIndex + 1) % mFramesInFlight];
             eastl::span timestamps = pool->GetTimestamps(mBaseMiscFlushesTimestampIndex, 2);
-            if (timestamps.empty()) return 0.0;
+            if (timestamps.empty())
+                return 0.0;
             return static_cast<f64>(timestamps[1] - timestamps[0]) * mQueue->GetTimestampTickPeriodNs();
         }
 
@@ -1060,5 +1110,5 @@ namespace PyroshockStudios {
 
             return info;
         }
-    } // namespace Renderer
+    } // namespace ShockGraph
 } // namespace PyroshockStudios

@@ -24,14 +24,8 @@
 
 namespace VisualTests {
     void WireframeSmooth::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Wireframe Smooth Render Image",
-        });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Wireframe Smooth RT",
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/WireframeSmooth.slang",
@@ -41,7 +35,7 @@ namespace VisualTests {
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
                 .colorTargetStates = { {
-                    .format = image->Info().format,
+                    .format = info.swapChainImage->Info().format,
                     // alpha blending is required for smooth lines
                     .blend = BlendInfo{
                         .colorBlendOp = BlendOp::Add,
@@ -63,7 +57,6 @@ namespace VisualTests {
             });
     }
     void WireframeSmooth::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         target = {};
         vsh = {}; fsh = {};
         pipeline = {};

@@ -24,10 +24,10 @@
 
 namespace VisualTests {
     void BlitImage::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
+        intermediateImage = info.resourceManager.CreatePersistentImage({
             .format = Format::RGBA32Sfloat /*also try out different formats!*/,
             // render to much smaller texture
-            .size = { info.displayInfo.width / 8, info.displayInfo.height / 8  },
+            .size = { info.displayInfo.width / 8, info.displayInfo.height / 8 },
             .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::BLIT_SRC,
             .name = "Blit Image Render Image",
         });
@@ -37,8 +37,8 @@ namespace VisualTests {
             .usage = ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_DST | ImageUsageFlagBits::BLIT_SRC,
             .name = "Blit Image Blit Image",
         });
-        target = info.resourceManager.CreateColorTarget({
-            .image = image,
+        intermediateTarget = info.resourceManager.CreateColorTarget({
+            .image = intermediateImage,
             .name = "Blit Image RT",
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/BlitImage.slang",
@@ -47,19 +47,22 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "Blit Image Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = intermediateImage->Info().format } },
                 .name = "Raster Pipeline",
             },
             {
                 .vertexShaderInfo = { TaskShaderInfo{ .program = vsh } },
                 .fragmentShaderInfo = { TaskShaderInfo{ .program = fsh } },
             });
+        swapChainImage = info.swapChainImage;
     }
     void BlitImage::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
+        swapChainImage = {};
+        intermediateImage = {};
         blitImage = {};
-        target = {};
-        vsh = {}; fsh = {};
+        intermediateTarget = {};
+        vsh = {};
+        fsh = {};
         pipeline = {};
     }
     eastl::span<GenericTask*> BlitImage::CreateTasks() {
@@ -68,7 +71,7 @@ namespace VisualTests {
                 { .name = "Blit Image Triangle", .color = LabelColor::GREEN },
                 [this](GraphicsTask& task) {
                     task.BindColorTarget({
-                        .target = target,
+                        .target = intermediateTarget,
                         .clear = { { 0.0f, 0.0f, 0.0f, 1.0f } },
                     });
                 },
@@ -79,17 +82,17 @@ namespace VisualTests {
             new CustomCallbackTask(
                 { .name = "Blit Image Operations", .color = LabelColor::GREEN },
                 [this](CustomTask& task) {
-                    task.UseImage({ .image = image,
+                    task.UseImage({ .image = intermediateImage,
                         .access = AccessConsts::BLIT_READ });
                     task.UseImage({ .image = blitImage,
                         .access = AccessConsts::BLIT_WRITE });
                 },
                 [this](ICommandBuffer* commands) {
                     BlitImageToImageInfo blitInfo{};
-                    blitInfo.srcImage = image->Internal();
+                    blitInfo.srcImage = intermediateImage->Internal();
                     blitInfo.dstImage = blitImage->Internal();
 
-                    Extent3D srcDim = image->Info().size;
+                    Extent3D srcDim = intermediateImage->Info().size;
                     Extent3D dstDim = blitImage->Info().size;
 
                     // Destination layout: 2x2 grid in dst image
@@ -147,26 +150,51 @@ namespace VisualTests {
                             });
                         }
                         bFirst = false;
-                        blitInfo.srcImageBox = { 
-                            .x = t.srcRect.x, 
-                            .y = t.srcRect.y, 
-                            .z = 0, 
-                            .width = t.srcRect.width, 
-                            .height = t.srcRect.height, 
-                            .depth = 1 
+                        blitInfo.srcImageBox = {
+                            .x = t.srcRect.x,
+                            .y = t.srcRect.y,
+                            .z = 0,
+                            .width = t.srcRect.width,
+                            .height = t.srcRect.height,
+                            .depth = 1
                         };
-                        blitInfo.dstImageBox = { 
-                            .x = t.dstRect.x, 
-                            .y = t.dstRect.y, 
-                            .z = 0, 
-                            .width = t.dstRect.width, 
-                            .height = t.dstRect.height, 
-                            .depth = 1 
+                        blitInfo.dstImageBox = {
+                            .x = t.dstRect.x,
+                            .y = t.dstRect.y,
+                            .z = 0,
+                            .width = t.dstRect.width,
+                            .height = t.dstRect.height,
+                            .depth = 1
                         };
                         blitInfo.filter = t.filter;
 
                         commands->BlitImageToImage(blitInfo);
                     }
+                },
+                TaskType::Graphics),
+            // blit to swap chain!
+            new CustomCallbackTask(
+                { .name = "Blit Swap Chain", .color = LabelColor::GREEN },
+                [this](CustomTask& task) {
+                    task.UseImage({ .image = blitImage,
+                        .access = AccessConsts::BLIT_READ });
+                    task.UseImage({ .image = swapChainImage,
+                        .access = AccessConsts::BLIT_WRITE });
+                },
+                [this](ICommandBuffer* commands) {
+                    BlitImageToImageInfo blitInfo{};
+                    blitInfo.srcImage = blitImage->Internal();
+                    blitInfo.dstImage = swapChainImage->Internal();
+
+                    Extent3D srcDim = blitImage->Info().size;
+                    Extent3D dstDim = swapChainImage->Info().size;
+
+                    blitInfo.srcImageBox = Box3D::Cut(srcDim);
+                    blitInfo.dstImageBox = Box3D::Cut(dstDim);
+                    // point sampling
+                    blitInfo.filter = Filter::Nearest;
+
+                    commands->BlitImageToImage(blitInfo);
                 },
                 TaskType::Graphics)
         };

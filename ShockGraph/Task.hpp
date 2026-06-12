@@ -45,6 +45,7 @@ namespace PyroshockStudios {
         struct TaskBufferDependencyInfo {
             TaskBuffer buffer;
             TaskAccessType access;
+            u32 reservedBytes = 0;
 
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator==(const TaskBufferDependencyInfo&) const = default;
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator!=(const TaskBufferDependencyInfo&) const = default;
@@ -52,6 +53,7 @@ namespace PyroshockStudios {
         struct TaskImageDependencyInfo {
             TaskImage image;
             TaskAccessType access;
+            u32 reservedBytes = 0;
 
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator==(const TaskImageDependencyInfo&) const = default;
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator!=(const TaskImageDependencyInfo&) const = default;
@@ -59,6 +61,7 @@ namespace PyroshockStudios {
         struct TaskAccelerationStructureDependencyInfo {
             eastl::variant<TaskBlas, TaskTlas> accelerationStructure;
             TaskAccessType access;
+            u32 reservedBytes = 0;
 
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator==(const TaskAccelerationStructureDependencyInfo&) const = default;
             PYRO_NODISCARD PYRO_FORCEINLINE bool operator!=(const TaskAccelerationStructureDependencyInfo&) const = default;
@@ -262,5 +265,5 @@ namespace PyroshockStudios {
             TaskExecuteCallback mExec;
         };
 
-    } // namespace Renderer
+    } // namespace ShockGraph
 } // namespace PyroshockStudios

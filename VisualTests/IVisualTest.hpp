@@ -44,6 +44,7 @@ namespace VisualTests {
         const DisplayInfo& displayInfo;
         ShaderCompiler& shaderCompiler;
         TaskResourceManager& resourceManager;
+        TaskImage swapChainImage;
     };
     struct ReleaseResourceInfo {
         TaskResourceManager& resourceManager;
@@ -62,7 +63,5 @@ namespace VisualTests {
         PYRO_NODISCARD virtual bool TaskSupported(IDevice* device) = 0;
 
         PYRO_NODISCARD virtual bool UseTaskGraph() const = 0;
-        PYRO_NODISCARD virtual TaskImage GetCompositeImageTaskGraph() = 0;
-        PYRO_NODISCARD virtual Image GetCompositeImageRaw() = 0;
     };
 } // namespace VisualTests

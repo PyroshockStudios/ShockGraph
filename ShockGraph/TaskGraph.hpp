@@ -110,8 +110,6 @@ namespace PyroshockStudios {
             SHOCKGRAPH_API void AddTask(TransferTask* task);
             SHOCKGRAPH_API void AddTask(CustomTask* task);
 
-            SHOCKGRAPH_API void AddSwapChainWrite(const TaskSwapChainWriteInfo& writeInfo);
-
             SHOCKGRAPH_API void Reset();
             SHOCKGRAPH_API void Build();
 
@@ -168,6 +166,8 @@ namespace PyroshockStudios {
             struct BatchBarrier {
                 eastl::vector<BufferMemoryBarrierInfo> buffer = {};
                 eastl::vector<ImageMemoryBarrierInfo> image = {};
+                // for mutating barriers e.g. swap chain
+                eastl::vector<eastl::function<ImageMemoryBarrierInfo()>> imageLambda = {};
                 eastl::vector<AccelerationStructureBarrierInfo> accelerationStructure = {};
             };
             struct Batch {
@@ -200,5 +200,5 @@ namespace PyroshockStudios {
 
             ILogStream* mLogStream = nullptr;
         };
-    } // namespace Renderer
+    } // namespace ShockGraph
 } // namespace PyroshockStudios

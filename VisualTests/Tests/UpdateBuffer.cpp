@@ -25,12 +25,6 @@
 namespace VisualTests {
 
     void UpdateBuffer::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Update Buffer Render Image",
-        });
         ubo = info.resourceManager.CreatePersistentBuffer({
             .size = sizeof(f32),
             .usage = BufferUsageFlagBits::UNIFORM_BUFFER | BufferUsageFlagBits::TRANSFER_DST /*Transfer DST is required*/,
@@ -38,7 +32,7 @@ namespace VisualTests {
             .name = "Vertex Scale Uniform Buffer",
         });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Update Buffer RT",
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/UpdateBuffer.slang",
@@ -47,7 +41,7 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "Update Buffer Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .name = "Raster Pipeline",
             },
             {
@@ -56,7 +50,6 @@ namespace VisualTests {
             });
     }
     void UpdateBuffer::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         ubo = {};
         target = {};
         vsh = {}; fsh = {};

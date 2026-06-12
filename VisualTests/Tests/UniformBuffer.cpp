@@ -81,12 +81,6 @@ namespace VisualTests {
     }
 
     void UniformBuffer::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Uniform Buffer Render Image",
-        });
         ubo = info.resourceManager.CreatePersistentBuffer({
             .size = sizeof(GlobalUbo),
             .usage = BufferUsageFlagBits::UNIFORM_BUFFER,
@@ -94,7 +88,7 @@ namespace VisualTests {
             .name = "Vertex Colours Uniform Buffer",
         });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Uniform Buffer RT",
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/UniformBuffer.slang",
@@ -103,7 +97,7 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "Uniform Buffer Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .name = "Raster Pipeline",
             },
             {
@@ -112,7 +106,6 @@ namespace VisualTests {
             });
     }
     void UniformBuffer::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         ubo = {};
         target = {};
         vsh = {}; fsh = {};

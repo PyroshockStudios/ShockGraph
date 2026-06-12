@@ -294,13 +294,26 @@ namespace PyroshockStudios {
 
         TaskColorTarget TaskResourceManager::CreateColorTarget(const TaskColorTargetInfo& info) {
             ASSERT(info.image, "No Image defined!");
-            RenderTarget renderTarget = mDevice->CreateRenderTarget({
-                .image = info.image->Internal(),
-                .slice = info.slice,
-                .flags = RenderTargetFlagBits::COLOR_TARGET,
-                .name = info.name,
-            });
-            return TaskColorTarget::Create(this, info, eastl::move(renderTarget));
+            if (info.image->IsSwapChainOwned()) {
+                eastl::vector<RenderTarget> targets{};
+                for (u32 i = 0; i < info.image->mSwapChainOwner->Info().bufferCount; ++i) {
+                    targets.emplace_back(mDevice->CreateRenderTarget({
+                        .image = info.image->InternalInFlightBuffer(i),
+                        .slice = info.slice,
+                        .flags = RenderTargetFlagBits::COLOR_TARGET,
+                        .name = info.name,
+                    }));
+                }
+                return TaskColorTarget::Create(this, info, eastl::move(targets));
+            } else {
+                RenderTarget renderTarget = mDevice->CreateRenderTarget({
+                    .image = info.image->Internal(),
+                    .slice = info.slice,
+                    .flags = RenderTargetFlagBits::COLOR_TARGET,
+                    .name = info.name,
+                });
+                return TaskColorTarget::Create(this, info, eastl::move(renderTarget));
+            }
         }
 
         TaskDepthStencilTarget TaskResourceManager::CreateDepthStencilTarget(const TaskDepthStencilTargetInfo& info) {
@@ -551,5 +564,5 @@ namespace PyroshockStudios {
                 states.mLastKnownImageLayouts.erase(it);
             }
         }
-    } // namespace Renderer
+    } // namespace ShockGraph
 } // namespace PyroshockStudios

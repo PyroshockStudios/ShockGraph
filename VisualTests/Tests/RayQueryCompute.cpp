@@ -28,13 +28,13 @@ namespace VisualTests {
         f32 x, y, z;
     };
     void RayQueryCompute::CreateResources(const CreateResourceInfo& info) {
+        swapChainImage = info.swapChainImage;
         image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA32Sfloat,
+            .format = info.swapChainImage->Info().format,
             .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::UNORDERED_ACCESS | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Ray-Query Compute Image",
+            .usage = ImageUsageFlagBits::UNORDERED_ACCESS | ImageUsageFlagBits::TRANSFER_SRC,
+            .name = "Ray Query Compute UAV Image",
         });
-
         imageUav = info.resourceManager.CreateUnorderedAccessView({ .image = image });
 
         csh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/RayQueryCompute.slang",
@@ -136,6 +136,7 @@ namespace VisualTests {
     void RayQueryCompute::ReleaseResources(const ReleaseResourceInfo& info) {
         info.resourceManager.ReleaseUnorderedAccessView(imageUav);
         computePipeline = {};
+        swapChainImage = {};
         image = {};
         csh = {};
         vertexBuffer = {};
@@ -226,11 +227,27 @@ namespace VisualTests {
                 commands.Dispatch({ .x = gx, .y = gy });
             });
 
-        tasks = { buildBlasTask, buildTlasTask, dispatchTask };
+        // copy to the swapchain
+        GenericTask* copyTask = new CustomCallbackTask(
+            { .name = "RayQuery Copy Swap Buffers", .color = LabelColor::YELLOW },
+            [this](CustomTask& task) {
+                task.UseImage({ .image = image, .access = AccessConsts::TRANSFER_READ });
+                task.UseImage({ .image = swapChainImage, .access = AccessConsts::TRANSFER_WRITE });
+            },
+            [this](ICommandBuffer* commands) {
+                commands->CopyImageToImage({
+                    .srcImage = image->Internal(),
+                    .dstImage = swapChainImage->Internal(),
+                    .extent = image->Info().size,
+                });
+            },
+            TaskType::Transfer);
+
+        tasks = { buildBlasTask, buildTlasTask, dispatchTask, copyTask };
 
         return tasks;
     }
-    bool RayQueryCompute::TaskSupported(IDevice* device) { return device->Features().bAccelerationStructureBuild&&
+    bool RayQueryCompute::TaskSupported(IDevice* device) { return device->Features().bAccelerationStructureBuild &&
                                                                   device->Features().bRayQueries; }
 
 } // namespace VisualTests

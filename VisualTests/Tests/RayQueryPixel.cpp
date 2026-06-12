@@ -28,15 +28,8 @@ namespace VisualTests {
         f32 x, y, z;
     };
     void RayQueryPixel::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Hello Texture Render Image",
-        });
-
-        imageTarget = info.resourceManager.CreateColorTarget({
-            .image = image,
+        target = info.resourceManager.CreateColorTarget({
+            .image = info.swapChainImage,
             .name = "Hello Texture RT",
         });
 
@@ -46,7 +39,7 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "RayQueryPixel Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .name = "Raster Pipeline",
             },
             {
@@ -193,8 +186,7 @@ namespace VisualTests {
 
     void RayQueryPixel::ReleaseResources(const ReleaseResourceInfo& info) {
         pipeline = {};
-        imageTarget = {};
-        image = {};
+        target = {};
         fsh = {};
         vsh = {};
         vertexBuffer = {};
@@ -214,7 +206,7 @@ namespace VisualTests {
             { .name = "RayQuery Draw Call", .color = LabelColor::YELLOW },
             [this](GraphicsTask& task) {
                 task.BindColorTarget({
-                    .target = imageTarget,
+                    .target = target,
                     .clear = eastl::make_optional<ColorClearValue>(eastl::array<f32, 4>{ 0, 0, 0, 0 }),
                 });
             },

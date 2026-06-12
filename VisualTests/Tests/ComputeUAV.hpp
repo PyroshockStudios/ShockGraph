@@ -33,19 +33,18 @@ namespace VisualTests {
         eastl::span<GenericTask*> CreateTasks() override;
 
         bool UseTaskGraph() const override { return true; }
-        TaskImage GetCompositeImageTaskGraph() override { return image; }
-        Image GetCompositeImageRaw() override { return image->Internal(); }
 
-       bool TaskSupported(IDevice* device) override { return true; }
+        bool TaskSupported(IDevice* device) override { return true; }
 
     private:
-        TaskImage image;
+        TaskColorTarget target;
+
         TaskImage depth;
         TaskBuffer vboUav;
         TaskBuffer idxUav;
         UnorderedAccessId vboUaView;
         UnorderedAccessId idxUaView;
-        TaskColorTarget target;
+
         TaskDepthStencilTarget depthTarget;
         TaskShader vsh, fsh, csh;
         TaskRasterPipeline renderVertices;

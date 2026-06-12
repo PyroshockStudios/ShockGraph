@@ -24,14 +24,8 @@
 
 namespace VisualTests {
     void PushConstants::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Push Constants Render Image",
-        });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Push Constants RT",
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/PushConstants.slang",
@@ -40,7 +34,7 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "Push Constants Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .name = "Raster Pipeline",
             },
             {
@@ -49,7 +43,6 @@ namespace VisualTests {
             });
     }
     void PushConstants::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         target = {};
         vsh = {}; fsh = {};
         pipeline = {};

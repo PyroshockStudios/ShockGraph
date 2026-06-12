@@ -49,13 +49,6 @@ namespace VisualTests {
     };
 
     void InstanceBuffer::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Instance Buffer Render Image",
-        });
-
         vbo = info.resourceManager.CreatePersistentBuffer(
             {
                 .size = gVertices.size() * sizeof(Vertex),
@@ -75,7 +68,7 @@ namespace VisualTests {
             { reinterpret_cast<const u8*>(gInstances.data()), reinterpret_cast<const u8*>(gInstances.data() + gInstances.size()) });
 
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Instance Buffer RT",
         });
 
@@ -86,7 +79,7 @@ namespace VisualTests {
 
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .inputAssemblyState = {
                     .primitiveTopology = PrimitiveTopology::TriangleList,
                     .vertexAttributes = eastl::array{
@@ -122,7 +115,6 @@ namespace VisualTests {
     }
 
     void InstanceBuffer::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         vbo = {};
         ibo = {};
         target = {};

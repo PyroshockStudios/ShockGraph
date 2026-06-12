@@ -32,22 +32,16 @@ namespace VisualTests {
             reinterpret_cast<u32&>(availableSampleCounts) >>= 1;
             reinterpret_cast<u32&>(sampleCount) <<= 1;
         }
-
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "MSAA Resolve Render Image",
-        });
+        image = info.swapChainImage;
         imageMSAA = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
+            .format = info.swapChainImage->Info().format,
             .size = { info.displayInfo.width, info.displayInfo.height },
             .sampleCount = sampleCount,
             .usage = ImageUsageFlagBits::RENDER_TARGET,
             .name = "MSAA Render Image",
         });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "MSAA Resolve RT",
         });
         targetMSAA = info.resourceManager.CreateColorTarget({
@@ -60,7 +54,10 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "MSAA Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
+                .rasterizerState = {
+                    .faceCulling = FaceCull::None,
+                },
                 .name = "Raster Pipeline",
             },
             {
@@ -69,7 +66,10 @@ namespace VisualTests {
             });
         pipelineMSAA = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = imageMSAA->Info().format } },
+                .rasterizerState = {
+                    .faceCulling = FaceCull::None,
+                },
                 .multiSampleState = {
                     .sampleCount = sampleCount,
                 },
@@ -85,7 +85,8 @@ namespace VisualTests {
         imageMSAA = {};
         target = {};
         targetMSAA = {};
-        vsh = {}; fsh = {};
+        vsh = {};
+        fsh = {};
         pipeline = {};
         pipelineMSAA = {};
     }
@@ -103,15 +104,15 @@ namespace VisualTests {
                 [this](TaskCommandList& commands) {
                     commands.SetViewport({
                         .x = 0.0f,
-                        .y = static_cast<f32>(image->Info().size.height / 4),
-                        .width = static_cast<f32>(image->Info().size.width / 2),
-                        .height = static_cast<f32>(image->Info().size.height / 2),
+                        .y = static_cast<f32>(imageMSAA->Info().size.height / 4),
+                        .width = static_cast<f32>(imageMSAA->Info().size.width / 2),
+                        .height = static_cast<f32>(imageMSAA->Info().size.height / 2),
                     });
                     commands.SetScissor({
                         .x = 0,
-                        .y = static_cast<i32>(image->Info().size.height / 4),
-                        .width = static_cast<i32>(image->Info().size.width / 2),
-                        .height = static_cast<i32>(image->Info().size.height / 2),
+                        .y = static_cast<i32>(imageMSAA->Info().size.height / 4),
+                        .width = static_cast<i32>(imageMSAA->Info().size.width / 2),
+                        .height = static_cast<i32>(imageMSAA->Info().size.height / 2),
                     });
                     commands.SetRasterPipeline(pipelineMSAA);
                     commands.Draw({ .vertexCount = 3 });

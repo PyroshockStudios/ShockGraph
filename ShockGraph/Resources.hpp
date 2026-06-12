@@ -44,7 +44,6 @@ namespace PyroshockStudios {
         class TaskResourceManager;
         class ShaderReloadListener;
 
-
         struct TaskResource_ : public RefCounted, DeleteCopy, DeleteMove {
             SHOCKGRAPH_API TaskResource_(TaskResourceManager* owner);
             SHOCKGRAPH_API virtual ~TaskResource_();
@@ -239,9 +238,12 @@ namespace PyroshockStudios {
         };
         struct TaskImage_ final : public TaskResource_ {
             SHOCKGRAPH_API TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, Image&& image);
+            SHOCKGRAPH_API TaskImage_(TaskResourceManager* owner, const TaskImageInfo& info, class TaskSwapChain_* swapChainOwner);
             SHOCKGRAPH_API ~TaskImage_() override;
-            PYRO_NODISCARD PYRO_FORCEINLINE Image Internal() {
-                return mImage;
+            PYRO_NODISCARD Image Internal();
+            PYRO_NODISCARD Image InternalInFlightBuffer(u32 index);
+            PYRO_NODISCARD bool IsSwapChainOwned() const {
+                return mSwapChainOwner != nullptr;
             }
 
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskImageInfo& Info() const { return mInfo; }
@@ -263,8 +265,13 @@ namespace PyroshockStudios {
             mutable std::mutex mShaderResourceLock;
             mutable ShaderResourceId srvId;
             mutable UnorderedAccessId uavId;
-            Image mImage = PYRO_NULL_IMAGE;
+            Image mCurrentImage = PYRO_NULL_IMAGE;
+            class TaskSwapChain_* mSwapChainOwner = nullptr;
             TaskImageInfo mInfo;
+
+            friend class TaskColorTarget_;
+            friend class TaskResourceManager;
+            friend class TaskGraph;
         };
         using TaskImage = SharedRef<TaskImage_>;
         using TaskImageRef = TaskImage&;
@@ -276,9 +283,12 @@ namespace PyroshockStudios {
         };
         struct TaskColorTarget_ final : public TaskResource_ {
             SHOCKGRAPH_API TaskColorTarget_(TaskResourceManager* owner, const TaskColorTargetInfo& info, RenderTarget&& renderTarget);
+            SHOCKGRAPH_API TaskColorTarget_(TaskResourceManager* owner, const TaskColorTargetInfo& info, eastl::vector<RenderTarget>&& swapChainTargets);
             SHOCKGRAPH_API ~TaskColorTarget_() override;
-            PYRO_NODISCARD PYRO_FORCEINLINE RenderTarget Internal() {
-                return mRenderTarget;
+            PYRO_NODISCARD SHOCKGRAPH_API RenderTarget Internal();
+            PYRO_NODISCARD SHOCKGRAPH_API RenderTarget InternalInFlightTarget(u32 index);
+            PYRO_NODISCARD PYRO_FORCEINLINE bool IsSwapChainOwned() const {
+                return Image()->IsSwapChainOwned();
             }
 
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskColorTargetInfo& Info() const { return mInfo; }
@@ -286,6 +296,7 @@ namespace PyroshockStudios {
 
         private:
             RenderTarget mRenderTarget = nullptr;
+            eastl::vector<RenderTarget> mSwapTargets = {};
             TaskColorTargetInfo mInfo;
         };
         using TaskColorTargetRef = TaskColorTarget_&;
@@ -341,13 +352,20 @@ namespace PyroshockStudios {
             PYRO_NODISCARD PYRO_FORCEINLINE ISwapChain* Internal() {
                 return mSwapChain;
             }
+            PYRO_NODISCARD PYRO_FORCEINLINE TaskImage SwapBuffer() {
+                return mSwapBuffer;
+            }
+            PYRO_NODISCARD PYRO_FORCEINLINE void Resize() {
+                bFlagResize = true;
+            }
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskSwapChainInfo& Info() const { return mInfo; }
-            PYRO_FORCEINLINE void Resize() { bFlagResize = true; }
 
         private:
             ISwapChain* mSwapChain = nullptr;
+            TaskImage mSwapBuffer = nullptr;
             TaskSwapChainInfo mInfo;
             bool bFlagResize = false;
+            bool bSafePresent = false;
             friend class TaskResourceManager;
             friend class TaskGraph;
         };
@@ -398,5 +416,5 @@ namespace PyroshockStudios {
         };
         using TaskTlas = SharedRef<TaskTlas_>;
         using TaskTlasRef = TaskTlas&;
-    } // namespace Renderer
+    } // namespace ShockGraph
 } // namespace PyroshockStudios

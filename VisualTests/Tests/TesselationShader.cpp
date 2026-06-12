@@ -26,14 +26,8 @@
 
 namespace VisualTests {
     void TesselationShader::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Tesselation Shader Render Image",
-        });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Tesselation Shader RT",
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/TesselationShader.slang",
@@ -48,7 +42,7 @@ namespace VisualTests {
             { .stage = ShaderStage::Fragment, .entryPoint = "fragmentMain", .name = "Tesselation Shader Fsh" });
         pipeline = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .tesselationState = { { .controlPoints = 3 } },
                 .inputAssemblyState = { .primitiveTopology = info.resourceManager.GetInternalContext()->Properties().bTesselationShader ? PrimitiveTopology::PatchList : PrimitiveTopology::TriangleList },
                 .rasterizerState = { .polygonMode = PolygonMode::Line },
@@ -62,7 +56,6 @@ namespace VisualTests {
             });
     }
     void TesselationShader::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         target = {};
         vsh = {};
         hsh = {};

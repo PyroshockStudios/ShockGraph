@@ -26,14 +26,8 @@
 
 namespace VisualTests {
     void SpecialisationConstants::CreateResources(const CreateResourceInfo& info) {
-        image = info.resourceManager.CreatePersistentImage({
-            .format = Format::RGBA8Unorm,
-            .size = { info.displayInfo.width, info.displayInfo.height },
-            .usage = ImageUsageFlagBits::RENDER_TARGET | ImageUsageFlagBits::TRANSFER_SRC | ImageUsageFlagBits::BLIT_SRC,
-            .name = "Specialisation Constants Render Image",
-        });
         target = info.resourceManager.CreateColorTarget({
-            .image = image,
+            .image = info.swapChainImage,
             .name = "Specialisation Constants RT",
         });
         vsh = info.shaderCompiler.CompileShaderFromFile("resources/VisualTests/Shaders/SpecialisationConstants.slang",
@@ -47,7 +41,7 @@ namespace VisualTests {
         specialisationConstants[1].data = -0.25f;
         pipeline0 = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .name = "Raster Pipeline 0",
             },
             {
@@ -65,7 +59,7 @@ namespace VisualTests {
         specialisationConstants[1].data = 0.25f;
         pipeline1 = info.resourceManager.CreateRasterPipeline(
             {
-                .colorTargetStates = { { .format = image->Info().format } },
+                .colorTargetStates = { { .format = info.swapChainImage->Info().format } },
                 .name = "Raster Pipeline 1",
             },
             {
@@ -78,7 +72,6 @@ namespace VisualTests {
             });
     }
     void SpecialisationConstants::ReleaseResources(const ReleaseResourceInfo& info) {
-        image = {};
         target = {};
         vsh = {}; fsh = {};
         pipeline0 = {};

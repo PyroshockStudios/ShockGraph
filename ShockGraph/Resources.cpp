@@ -222,6 +222,9 @@ namespace PyroshockStudios {
             if (mRenderTarget) {
                 Device()->DestroyDeferred(mRenderTarget);
             }
+            for (RenderTarget rt : mSwapTargets) {
+                Device()->DestroyDeferred(rt);
+            }
         }
         RenderTarget TaskColorTarget_::Internal() {
             return IsSwapChainOwned() ? 

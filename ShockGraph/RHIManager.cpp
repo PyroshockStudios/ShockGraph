@@ -49,12 +49,12 @@ namespace PyroshockStudios {
             ReleaseAvailableRHIs();
             eastl::string rhiDirectory = PlatformFactory::Get<IFileSystem>()->GetExecutableDirectory() + "/RHI";
 
-            Logger::Trace(mLogStream, "Searching for RHIs inside " + rhiDirectory);
+            Logger::Trace(mLogStream, "Searching for RHIs inside {}", rhiDirectory);
             std::filesystem::directory_iterator iterator;
             try {
                 iterator = std::filesystem::directory_iterator(rhiDirectory.c_str());
             } catch (std::exception ex) {
-                Logger::Error(mLogStream, "Failed to query RHIs inside directory \"" + rhiDirectory + "\". Exception thrown, reason: \"" + eastl::string(ex.what()) + "\"");
+                Logger::Error(mLogStream, "Failed to query RHIs inside directory \"{}\". Exception thrown, reason: \"{}\"", rhiDirectory, ex.what());
                 return;
             }
 
@@ -68,7 +68,7 @@ namespace PyroshockStudios {
                     IDynamicLibrary* lib = PlatformFactory::Get<ILibraryLoader>()->Load(rhiPath);
                     if (!lib) {
                         // TODO
-                        Logger::Error(mLogStream, "Failed to query RHI from path \"" + rhiPath + "\"");
+                        Logger::Error(mLogStream, "Failed to query RHI from path \"{}\"", rhiPath);
                         continue;
                     }
 
@@ -80,7 +80,7 @@ namespace PyroshockStudios {
                     PFN_GetCustomRHIInfo fnGetInfo = lib->GetAddress<PFN_GetCustomRHIInfo>("GetCustomRHIInfo");
 
                     if (!fnGetInfo || !attachable.fnCreateRHIContext || !attachable.fnDestroyRHIContext) {
-                        Logger::Error(mLogStream, "RHI \"" + rhiPath + "\" is missing exported functions! PFN_CreateRHIContext/PFN_DestroyRHIContext/PFN_GetCustomRHIInfo may be missing. Ignoring RHI...");
+                        Logger::Error(mLogStream, "RHI \"{}\" is missing exported functions! PFN_CreateRHIContext/PFN_DestroyRHIContext/PFN_GetCustomRHIInfo may be missing. Ignoring RHI...", rhiPath);
                         PlatformFactory::Get<ILibraryLoader>()->Unload(lib);
                         continue;
                     }
@@ -101,7 +101,7 @@ namespace PyroshockStudios {
 
         bool RHIManager::AttachRHI(GUID rhiGUID, const RHICreateInfo& createInfo, u32 selectGpuVendorDeviceIdMask) {
             if (mAttachedRHIInfo.library != nullptr) {
-                Logger::Error(mLogStream, "RHI " + eastl::string(mAttachedRHIInfo.info.name) + " is currently attached! Application must be restarted to use a different RHI!.");
+                Logger::Error(mLogStream, "RHI {} is currently attached! Application must be restarted to use a different RHI!.", mAttachedRHIInfo.info.name);
                 return false;
             }
             for (const auto& rhi : mAvailableRHIs) {
@@ -114,7 +114,7 @@ namespace PyroshockStudios {
             mRhiApi = {};
             mAttachedRHIInfo.fnCreateRHIContext(&createInfo, &mRhiApi);
             if (mRhiApi.loadedContext == nullptr) {
-                Logger::Error(mLogStream, "Failed to attach RHI " + eastl::string(mAttachedRHIInfo.info.name) + "! RHIContext creation failed!");
+                Logger::Error(mLogStream, "Failed to attach RHI {}! RHIContext creation failed!", mAttachedRHIInfo.info.name);
                 return false;
             }
 
@@ -170,6 +170,6 @@ namespace PyroshockStudios {
             }
             mAvailableRHIs.clear();
         }
-    } // namespace Renderer
+    } // namespace ShockGraph
 } // namespace PyroshockStudios
 #endif

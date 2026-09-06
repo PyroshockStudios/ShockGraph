@@ -270,6 +270,7 @@ namespace PyroshockStudios {
             TaskImageInfo mInfo;
 
             friend struct TaskColorTarget_;
+            friend struct TaskSwapChain_;
             friend class TaskResourceManager;
             friend class TaskGraph;
         };
@@ -355,7 +356,7 @@ namespace PyroshockStudios {
             PYRO_NODISCARD PYRO_FORCEINLINE TaskImage SwapBuffer() {
                 return mSwapBuffer;
             }
-            PYRO_NODISCARD PYRO_FORCEINLINE void Resize();
+            PYRO_NODISCARD SHOCKGRAPH_API void Resize();
             PYRO_NODISCARD PYRO_FORCEINLINE const TaskSwapChainInfo& Info() const { return mInfo; }
 
         private:

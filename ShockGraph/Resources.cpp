@@ -227,8 +227,7 @@ namespace PyroshockStudios {
             }
         }
         RenderTarget TaskColorTarget_::Internal() {
-            return IsSwapChainOwned() ? 
-                InternalInFlightTarget(mInfo.image->mSwapChainOwner->Internal()->GetCurrentImageIndex()) : mRenderTarget;
+            return IsSwapChainOwned() ? InternalInFlightTarget(mInfo.image->mSwapChainOwner->Internal()->GetCurrentImageIndex()) : mRenderTarget;
         }
         RenderTarget TaskColorTarget_::InternalInFlightTarget(u32 index) {
             return IsSwapChainOwned() ? mSwapTargets[index] : nullptr;
@@ -258,7 +257,11 @@ namespace PyroshockStudios {
         TaskSwapChain_::~TaskSwapChain_() {
             Device()->DestroyDeferred(mSwapChain);
         }
-        void TaskSwapChain_::Resize() { mSwapChain->Resize(); }
+        void TaskSwapChain_::Resize() {
+            mSwapChain->Resize();
+            auto [w, h] = mSwapChain->GetSurfaceExtent();
+            mSwapBuffer->mInfo.size = { w, h, 1 };
+        }
         TaskBlas_::TaskBlas_(TaskResourceManager* owner, const TaskBlasInfo& info, BlasId&& blas)
             : TaskResource_(owner), mBlas(blas), mInfo(info) {
         }

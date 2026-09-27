@@ -148,7 +148,7 @@ namespace PyroshockStudios {
                     .dstOffset = info.dstOffset,
                 });
             }
-            PYRO_FORCEINLINE void ClearUnorderedAccessViw(const TaskClearUnorderedAccessViewInfo& info) {
+            PYRO_FORCEINLINE void ClearUnorderedAccessView(const TaskClearUnorderedAccessViewInfo& info) {
                 mCommandBuffer.ClearUnorderedAccessView(info);
             }
             PYRO_FORCEINLINE void UpdateBuffer(const TaskUpdateBufferInfo& info) {
@@ -157,6 +157,10 @@ namespace PyroshockStudios {
                     .region = info.region,
                     .data = info.data,
                 });
+            }
+
+            PYRO_FORCEINLINE void ClearRenderTarget(const ClearRenderTargetInfo& info) {
+                mCommandBuffer.ClearRenderTarget(info);
             }
 
             template <StandardLayoutConcept T>
@@ -208,6 +212,10 @@ namespace PyroshockStudios {
                     .offset = info.offset,
                     .indexType = info.indexType,
                 });
+            }
+
+            PYRO_FORCEINLINE void SetStencilReference(const SetStencilReferenceInfo& info) {
+                mCommandBuffer.SetStencilReference(info);
             }
 
             PYRO_FORCEINLINE void Draw(const TaskDrawInfo& info) {

@@ -171,18 +171,28 @@ namespace PyroshockStudios {
             return IsSwapChainOwned() ? InternalInFlightBuffer(mSwapChainOwner->Internal()->GetCurrentImageIndex()) : mCurrentImage;
         }
         Image TaskImage_::InternalInFlightBuffer(u32 index) {
-            return mSwapChainOwner ? mSwapChainOwner->Internal()->GetBackBuffer(static_cast<i32>(index)) : PYRO_NULL_IMAGE;
+            return mSwapChainOwner ? mSwapChainOwner->Internal()->GetBackBuffer(index) : PYRO_NULL_IMAGE;
         }
         ShaderResourceId TaskImage_::ShaderResource() const {
-            ASSERT(!IsSwapChainOwned(), "Cannot create shader resource from swap chain image");
             std::lock_guard l(mShaderResourceLock);
-            if (srvId == PYRO_NULL_SRV) {
-                srvId = const_cast<TaskImage_*>(this)->Device()->CreateShaderResource(GetDefaultResourceInfo());
+            if (IsSwapChainOwned()) {
+                if (swapchainSrvIds.empty()) {
+                    auto resourceInfo = GetDefaultResourceInfo();
+                    for (u32 i = 0; i < mSwapChainOwner->Info().bufferCount; ++i) {
+                        resourceInfo.image = mSwapChainOwner->Internal()->GetBackBuffer(i);
+                        swapchainSrvIds.push_back(const_cast<TaskImage_*>(this)->Device()->CreateShaderResource(resourceInfo));
+                    }
+                }
+                return swapchainSrvIds[mSwapChainOwner->Internal()->GetCurrentImageIndex()];
+            } else {
+                if (srvId == PYRO_NULL_SRV) {
+                    srvId = const_cast<TaskImage_*>(this)->Device()->CreateShaderResource(GetDefaultResourceInfo());
+                }
+                return srvId;
             }
-            return srvId;
         }
         UnorderedAccessId TaskImage_::UnorderedAccess() const {
-            ASSERT(!IsSwapChainOwned(), "Cannot create shader resource from swap chain image");
+            ASSERT(!IsSwapChainOwned(), "Cannot create unordered access resource from swap chain image");
             std::lock_guard l(mShaderResourceLock);
             if (uavId == PYRO_NULL_UAV) {
                 uavId = const_cast<TaskImage_*>(this)->Device()->CreateUnorderedAccess(GetDefaultResourceInfo());
@@ -258,6 +268,10 @@ namespace PyroshockStudios {
             Device()->DestroyDeferred(mSwapChain);
         }
         void TaskSwapChain_::Resize() {
+            for (auto& srv : mSwapBuffer->swapchainSrvIds) {
+                Device()->DestroyDeferred(srv);
+            }
+            mSwapBuffer->swapchainSrvIds.clear();
             mSwapChain->Resize();
             auto [w, h] = mSwapChain->GetSurfaceExtent();
             mSwapBuffer->mInfo.size = { w, h, 1 };

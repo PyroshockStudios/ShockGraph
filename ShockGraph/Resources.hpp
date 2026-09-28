@@ -265,6 +265,7 @@ namespace PyroshockStudios {
             mutable std::mutex mShaderResourceLock;
             mutable ShaderResourceId srvId;
             mutable UnorderedAccessId uavId;
+            mutable eastl::vector<ShaderResourceId> swapchainSrvIds;
             Image mCurrentImage = PYRO_NULL_IMAGE;
             struct TaskSwapChain_* mSwapChainOwner = nullptr;
             TaskImageInfo mInfo;

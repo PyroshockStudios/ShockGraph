@@ -265,6 +265,11 @@ namespace PyroshockStudios {
             mInfo.bufferCount = mSwapChain->Info().bufferCount;
         }
         TaskSwapChain_::~TaskSwapChain_() {
+            if (mSwapBuffer) {
+                for (auto srv : mSwapBuffer->swapchainSrvIds) {
+                    Device()->DestroyDeferred(srv);
+                }
+            }
             Device()->DestroyDeferred(mSwapChain);
         }
         void TaskSwapChain_::Resize() {
